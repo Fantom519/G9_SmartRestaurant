@@ -4,4 +4,14 @@ data class CartItem(
     val menuItem: MenuItem,
     var quantity: Int = 1,
     var note: String = ""
-)
+) {
+    fun toOrderItem(): OrderItem {
+        return OrderItem(
+            menuItemId = menuItem.id,
+            name = menuItem.name,
+            price = menuItem.price,
+            quantity = quantity,
+            note = note
+        )
+    }
+}
