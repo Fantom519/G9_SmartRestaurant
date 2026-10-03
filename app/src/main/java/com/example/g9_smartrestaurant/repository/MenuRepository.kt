@@ -1,53 +1,51 @@
 package com.example.g9_smartrestaurant.repository
 
+import com.example.g9_smartrestaurant.model.Category
 import com.example.g9_smartrestaurant.model.MenuItem
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
-class MenuRepository {
-    private val db = FirebaseFirestore.getInstance()
+class MenuRepository(
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+) {
+    private val menuCollection = firestore.collection("menu_items")
+    private val categoryCollection = firestore.collection("categories")
 
-    // Hàm lấy danh sách món ăn từ Firestore về
-    fun getMenuItems(onSuccess: (List<MenuItem>) -> Unit, onFailure: (Exception) -> Unit) {
-        db.collection("menu_items")
-            .get()
-            .addOnSuccessListener { result ->
-                val items = result.documents.mapNotNull { doc ->
-                    // Ép dữ liệu từ Document của Firebase sang Data Class MenuItem
-                    val item = doc.toObject(MenuItem::class.java)
-                    item?.copy(id = doc.id) // Gán thêm Document ID nếu cần
-                }
-                onSuccess(items)
-            }
-            .addOnFailureListener { exception ->
-                onFailure(exception)
-            }
+    // --- PHẦN CHO CUSTOMER: LẤY DỮ LIỆU ---
+    suspend fun getCategories(): Result<List<Category>> = runCatching {
+        val snapshot = categoryCollection.orderBy("displayOrder").get().await()
+        snapshot.toObjects(Category::class.java)
     }
 
-    fun placeOrder(
-        tableNumber: String,
-        items: List<com.example.g9_smartrestaurant.model.CartItem>,
-        totalAmount: Double,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        val orderData = hashMapOf(
-            "tableNumber" to tableNumber,
-            "total" to totalAmount,
-            "status" to "PLACED",
-            "createdAt" to System.currentTimeMillis(),
-            "items" to items.map {
-                hashMapOf(
-                    "name" to it.menuItem.name,
-                    "price" to it.menuItem.price,
-                    "quantity" to it.quantity,
-                    "note" to it.note // Lưu thêm ghi chú món ăn lên Firestore
-                )
-            }
-        )
+    suspend fun getMenuItems(categoryId: String? = null): Result<List<MenuItem>> = runCatching {
+        val query = if (categoryId.isNullOrBlank() || categoryId == "all") {
+            menuCollection
+        } else {
+            menuCollection.whereEqualTo("categoryId", categoryId)
+        }
+        val snapshot = query.get().await()
+        snapshot.documents.mapNotNull { doc ->
+            doc.toObject(MenuItem::class.java)?.copy(id = doc.id)
+        }
+    }
 
-        db.collection("orders")
-            .add(orderData)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onFailure(it) }
+    // --- PHẦN CHO MANAGER: CRUD MENU & DANH MỤC ---
+    suspend fun addMenuItem(item: MenuItem): Result<String> = runCatching {
+        val docRef = menuCollection.document()
+        val itemWithId = item.copy(id = docRef.id)
+        docRef.set(itemWithId).await()
+        docRef.id
+    }
+
+    suspend fun updateMenuItem(item: MenuItem): Result<Unit> = runCatching {
+        menuCollection.document(item.id).set(item).await()
+    }
+
+    suspend fun deleteMenuItem(itemId: String): Result<Unit> = runCatching {
+        menuCollection.document(itemId).delete().await()
+    }
+
+    suspend fun toggleItemAvailability(itemId: String, isAvailable: Boolean): Result<Unit> = runCatching {
+        menuCollection.document(itemId).update("isAvailable", isAvailable).await()
     }
 }

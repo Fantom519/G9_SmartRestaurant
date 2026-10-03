@@ -2,7 +2,6 @@ package com.example.g9_smartrestaurant.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -23,10 +22,13 @@ import coil.compose.AsyncImage
 import com.example.g9_smartrestaurant.model.CartItem
 import com.example.g9_smartrestaurant.model.MenuItem
 import com.example.g9_smartrestaurant.repository.MenuRepository
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuScreen(menuRepository: MenuRepository = MenuRepository()) {
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     val cartItems = remember { mutableStateListOf<CartItem>() }
@@ -56,15 +58,14 @@ fun MenuScreen(menuRepository: MenuRepository = MenuRepository()) {
     }
 
     LaunchedEffect(Unit) {
-        menuRepository.getMenuItems(
-            onSuccess = { items ->
-                menuList = items
-                isLoading = false
-            },
-            onFailure = {
-                isLoading = false
-            }
-        )
+        isLoading = true
+        val result = menuRepository.getMenuItems()
+        result.onSuccess { items ->
+            menuList = items
+            isLoading = false
+        }.onFailure {
+            isLoading = false
+        }
     }
 
     Scaffold(
@@ -313,21 +314,24 @@ fun MenuScreen(menuRepository: MenuRepository = MenuRepository()) {
                     Button(
                         onClick = {
                             isPlacingOrder = true
-                            menuRepository.placeOrder(
+                            val orderItems = cartItems.map { it.toOrderItem() }
+                            val newOrder = com.example.g9_smartrestaurant.model.Order(
                                 tableNumber = "Bàn 01",
-                                items = cartItems.toList(),
-                                totalAmount = totalAmount,
-                                onSuccess = {
-                                    isPlacingOrder = false
+                                total = totalAmount,
+                                items = orderItems
+                            )
+
+                            coroutineScope.launch {
+                                val result = com.example.g9_smartrestaurant.repository.OrderRepository().placeOrder(newOrder)
+                                isPlacingOrder = false
+                                result.onSuccess {
                                     cartItems.clear()
                                     showCartSheet = false
                                     Toast.makeText(context, "Đặt món thành công!", Toast.LENGTH_SHORT).show()
-                                },
-                                onFailure = {
-                                    isPlacingOrder = false
-                                    Toast.makeText(context, "Lỗi: ${it.message}", Toast.LENGTH_SHORT).show()
+                                }.onFailure { error ->
+                                    Toast.makeText(context, "Lỗi: ${error.message}", Toast.LENGTH_SHORT).show()
                                 }
-                            )
+                            }
                         },
                         enabled = !isPlacingOrder && cartItems.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
