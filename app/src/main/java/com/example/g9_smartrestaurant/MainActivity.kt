@@ -14,8 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
 import com.example.g9_smartrestaurant.ui.MenuScreen
+import com.example.g9_smartrestaurant.ui.StaffDashboardRoute
 
-
+private const val DEBUG_ROLE = "Staff"   // đổi thành "Customer" để về màn khách
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,6 +26,8 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         MenuScreen()
+                        //if (DEBUG_ROLE == "Staff") StaffDashboardRoute() else MenuScreen()
+                        //Dùng để chạy UI của Staff (tách biệt UI của khách)
                     }
                 }
             }
