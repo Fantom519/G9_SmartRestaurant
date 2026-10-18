@@ -17,6 +17,9 @@ import com.example.g9_smartrestaurant.ui.customer.CustomerHomeScreen
 import com.example.g9_smartrestaurant.ui.customer.MenuOrderScreen
 import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +43,8 @@ fun AppNavigation() {
 
     NavHost(
         navController = navController,
-        startDestination = "home"
+        //startDestination = "home"
+        startDestination = "staff/orders"
     ) {
         // Màn hình 1: Trang chủ Khách hàng
         composable("home") {
@@ -81,5 +85,49 @@ fun AppNavigation() {
                 }
             )
         }
+
+        composable("staff/orders") {
+            StaffOrderScreen(
+                onOrderClick = { orderId ->
+                    navController.navigate("staff/order/$orderId")
+                },
+                onNavigateToHistory = {
+                    navController.navigate("staff/history")
+                }
+            )
+        }
+
+        composable(
+            route = "staff/order/{orderId}",
+            arguments = listOf(
+                navArgument("orderId") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+
+            val orderId =
+                backStackEntry.arguments?.getString("orderId") ?: ""
+
+            StaffOrderDetailScreen(
+                orderId = orderId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+
+        composable("staff/history") {
+            StaffOrderHistoryScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOrderClick = { orderId ->
+                    navController.navigate("staff/order/$orderId")
+                }
+            )
+        }
+
     }
 }
