@@ -8,5 +8,6 @@ data class Order(
     val total: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
     val eta: Int = 0,
-    val items: List<OrderItem> = emptyList()
+    val items: List<OrderItem> = emptyList(),
+    val cancelReason: String = ""
 )
