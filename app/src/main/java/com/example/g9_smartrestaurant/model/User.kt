@@ -1,7 +1,9 @@
+
 package com.example.g9_smartrestaurant.model
+
 data class User(
-    val id: String = "",
-    val name: String = "",
+    val uid: String = "",
     val email: String = "",
-    val role: UserRole = UserRole.CUSTOMER
+    val role: String = UserRole.CUSTOMER.name,
+    val createdAt: Long = System.currentTimeMillis()
 )
