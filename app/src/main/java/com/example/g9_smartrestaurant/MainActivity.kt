@@ -21,6 +21,9 @@ import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
 
+// 1. THÊM IMPORT KITCHEN TẠI ĐÂY
+import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,9 +46,16 @@ fun AppNavigation() {
 
     NavHost(
         navController = navController,
-        //startDestination = "home"
-        startDestination = "staff/orders"
-    ) {
+        startDestination = "kitchen/queue"
+//         startDestination = "home"
+//         startDestination = "staff/orders"
+    )
+        {
+        // Màn hình Kitchen
+        composable("kitchen/queue") {
+            KitchenQueueScreen()
+        }
+
         // Màn hình 1: Trang chủ Khách hàng
         composable("home") {
             CustomerHomeScreen(
@@ -116,7 +126,6 @@ fun AppNavigation() {
                 }
             )
         }
-
 
         composable("staff/history") {
             StaffOrderHistoryScreen(
