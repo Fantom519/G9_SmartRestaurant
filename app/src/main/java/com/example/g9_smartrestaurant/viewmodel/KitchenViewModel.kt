@@ -5,43 +5,42 @@ import androidx.lifecycle.viewModelScope
 import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.model.OrderStatus
 import com.example.g9_smartrestaurant.repository.OrderRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 class KitchenViewModel(
     private val repository: OrderRepository = OrderRepository()
 ) : ViewModel() {
 
-    private val _orders = MutableStateFlow<List<Order>>(emptyList())
-    val orders: StateFlow<List<Order>> = _orders
-
-    init {
-        observeKitchenOrders()
+    // Tính mốc thời gian 00:00:00 đầu ngày hôm nay
+    private fun getStartOfToday(): Long {
+        return Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
-    private fun observeKitchenOrders() {
-        viewModelScope.launch {
-            // Lắng nghe realtime từ Firestore
-            repository.observeActiveOrders()
-                .catch { e ->
-                    e.printStackTrace()
-                }
-                .collect { activeOrders ->
-                    // Bếp chỉ quan tâm các đơn đã được Nhân viên xác nhận (CONFIRMED),
-                    // đang nấu (PREPARING) hoặc đã nấu xong (READY)
-                    val kitchenOrders = activeOrders.filter {
-                        it.status == OrderStatus.CONFIRMED ||
-                                it.status == OrderStatus.PREPARING ||
-                                it.status == OrderStatus.READY
-                    }
-                    // Sắp xếp đơn cũ nhất lên đầu
-                    _orders.value = kitchenOrders.sortedBy { it.id }
-                }
+    // Lấy đơn hàng active được tạo trong ngày hôm nay
+    val orders: StateFlow<List<Order>> = repository.observeActiveOrders()
+        .map { orderList ->
+            val startOfToday = getStartOfToday()
+            orderList.filter { order ->
+                order.createdAt >= startOfToday
+            }
         }
-    }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
+    // Đã sửa: Sử dụng viewModelScope.launch để gọi suspend function
     fun updateOrderStatus(orderId: String, newStatus: OrderStatus) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, newStatus)

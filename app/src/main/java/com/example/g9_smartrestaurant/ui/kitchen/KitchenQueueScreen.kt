@@ -19,6 +19,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.model.OrderStatus
 import com.example.g9_smartrestaurant.viewmodel.KitchenViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +30,7 @@ fun KitchenQueueScreen(
 ) {
     val orders by viewModel.orders.collectAsState()
     var selectedFilter by remember { mutableStateOf<OrderStatus?>(null) }
+
     val filteredOrders = if (selectedFilter == null) {
         orders
     } else {
@@ -40,7 +44,7 @@ fun KitchenQueueScreen(
                     Column {
                         Text("Màn Hình Bếp (KDS)", fontWeight = FontWeight.Bold)
                         Text(
-                            "Quản lý & Chế biến món ăn",
+                            "Quản lý & Chế biến món ăn trong ngày",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -58,7 +62,7 @@ fun KitchenQueueScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // 1. Bảng thống kê nhanh
+            // 1. Thống kê nhanh
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -66,25 +70,26 @@ fun KitchenQueueScreen(
                 StatCard(
                     title = "Chờ nấu",
                     count = orders.count { it.status == OrderStatus.CONFIRMED },
-                    color = Color(0xFFE53935), // Đỏ
+                    color = Color(0xFFE53935),
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
                     title = "Đang nấu",
                     count = orders.count { it.status == OrderStatus.PREPARING },
-                    color = Color(0xFFFB8C00), // Cam
+                    color = Color(0xFFFB8C00),
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
                     title = "Sẵn sàng",
                     count = orders.count { it.status == OrderStatus.READY },
-                    color = Color(0xFF43A047), // Xanh
+                    color = Color(0xFF43A047),
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 2. Các Filter Chip
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -108,13 +113,13 @@ fun KitchenQueueScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Danh sách đơn hàng trong bếp
+            // 3. Danh sách đơn hàng trong bếp
             if (filteredOrders.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Không có đơn hàng nào", color = Color.Gray)
+                    Text("Không có đơn hàng nào trong ngày hôm nay", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
@@ -162,6 +167,12 @@ fun KitchenOrderCard(
         else -> order.status.name to Color.Gray
     }
 
+    // Định dạng hiển thị giờ:phút - ngày/tháng/năm
+    val formattedDateTime = remember(order.createdAt) {
+        val sdf = SimpleDateFormat("HH:mm - dd/MM/yyyy", Locale.getDefault())
+        sdf.format(Date(order.createdAt))
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -174,17 +185,26 @@ fun KitchenOrderCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Bàn ${order.tableNumber}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Mã: ${order.id.takeLast(4)}",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+                    // Dòng hiển thị ngày giờ đặt món
                     Text(
-                        text = "Bàn ${order.tableNumber}",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Mã: ${order.id.takeLast(4)}",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        text = "Đặt lúc: $formattedDateTime",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
 
@@ -218,7 +238,6 @@ fun KitchenOrderCard(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 15.sp
                         )
-                        // Hiển thị phần ghi chú (note)
                         if (!item.notes.isNullOrEmpty()) {
                             Text(
                                 text = "• Ghi chú: ${item.notes}",
