@@ -40,7 +40,7 @@ class KitchenViewModel(
             initialValue = emptyList()
         )
 
-    // Đã sửa: Sử dụng viewModelScope.launch để gọi suspend function
+    // Sử dụng viewModelScope.launch để gọi suspend function
     fun updateOrderStatus(orderId: String, newStatus: OrderStatus) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, newStatus)
