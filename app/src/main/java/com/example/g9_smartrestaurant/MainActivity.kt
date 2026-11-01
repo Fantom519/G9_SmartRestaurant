@@ -26,8 +26,8 @@ import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
 
 // Nhập import màn hình của bạn cùng nhóm (nếu có):
-// import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
-// import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
+import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
