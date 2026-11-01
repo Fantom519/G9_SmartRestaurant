@@ -43,12 +43,30 @@ Dự án áp dụng mô hình **MVVM (Model - View - ViewModel)** kết hợp Re
 
 ```text
 com.example.g9_smartrestaurant/
-├── model/                 # Data classes (MenuItem, CartItem, Order, User)
-├── repository/            # Tầng giao tiếp dữ liệu với Firestore Database
-├── ui/                    # Giao diện Jetpack Compose (Screens & Components)
-│   ├── MenuScreen.kt      # Màn hình Menu & Giỏ hàng khách hàng
-│   └── theme/             # Cấu hình màu sắc, Typography theo Material 3
-└── MainActivity.kt        # Entry point của ứng dụng
+├── model/
+│   ├── CartItem.kt
+│   ├── MenuItem.kt
+│   ├── Order.kt
+│   └── UserRole.kt
+├── ui/
+│   ├── auth/
+│   │   ├── LoginScreen.kt          # Xử lý Auth + Firestore Role Verification
+│   │   └── RoleSelectionScreen.kt  # Chọn 1 trong 4 vai trò
+│   ├── customer/
+│   │   ├── CustomerHomeScreen.kt   # Màn hình chính chứa Bottom Navigation (4 Tabs)
+│   │   ├── HomeTabScreen.kt        # Tab 0: Xem nhanh món nổi bật & thông tin
+│   │   ├── OrderHistoryTabScreen.kt# Tab 1: Danh sách đơn hàng thời gian thực
+│   │   ├── CartTabScreen.kt        # Tab 2: Giỏ hàng & đặt món
+│   │   ├── CustomerProfileScreen.kt# Tab 3: Hồ sơ & Đăng xuất
+│   │   ├── MenuOrderScreen.kt      # Màn hình Thực đơn chi tiết (Search & Filter)
+│   │   └── OrderTrackingScreen.kt  # Màn hình Theo dõi tiến trình 4 bước (Timeline)
+│   ├── kitchen/
+│   │   └── KitchenQueueScreen.kt   # Màn hình KDS Phòng bếp
+│   ├── staff/
+│   │   └── StaffOrderScreen.kt     # Màn hình Tiếp nhận & Bưng món
+│   └── manager/
+│       └── ManagerDashboardScreen.kt # Dashboard Quản lý
+└── MainActivity.kt                 # Khai báo Navigation Compose Route toàn bộ app
 ```
 ---
 
