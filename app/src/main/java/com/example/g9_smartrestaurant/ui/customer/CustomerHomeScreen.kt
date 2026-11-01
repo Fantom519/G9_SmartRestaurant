@@ -1,340 +1,195 @@
 package com.example.g9_smartrestaurant.ui.customer
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.example.g9_smartrestaurant.model.Category
+import com.example.g9_smartrestaurant.model.CartItem
 import com.example.g9_smartrestaurant.model.MenuItem
-import com.example.g9_smartrestaurant.repository.MenuRepository
+import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
-import com.example.g9_smartrestaurant.ui.theme.SurfaceGray
-import kotlinx.coroutines.launch
-import java.text.NumberFormat
-import java.util.Locale
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerHomeScreen(
+    cartItems: SnapshotStateMap<String, CartItem>,
+    initialTab: Int = 0, // Mặc định là 0 (Trang chủ), truyền 2 khi chuyển từ Thực đơn sang Giỏ hàng
     onNavigateToMenu: () -> Unit,
-    onNavigateToOrders: () -> Unit
+    onNavigateToTracking: (String) -> Unit, // Điều hướng sang màn hình Thanh trạng thái
+    onLogout: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val menuRepository = remember { MenuRepository() }
+    val context = LocalContext.current
+    val db = remember { FirebaseFirestore.getInstance() }
+    val currentUserId = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "" }
 
-    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
-    var featuredItems by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    // Khởi tạo tab hiển thị theo initialTab
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    var showAvatarMenu by remember { mutableStateOf(false) }
 
-    val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("vi").setRegion("VN").build())
-    }
+    var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
+    var isLoadingMenu by remember { mutableStateOf(true) }
 
+    var ordersList by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var isLoadingOrders by remember { mutableStateOf(true) }
+
+    // Tải thực đơn từ Firestore
     LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            val catRes = menuRepository.getCategories()
-            catRes.onSuccess { categories = it }
-
-            val itemRes = menuRepository.getMenuItems()
-            itemRes.onSuccess {
-                featuredItems = it.take(6)
-                isLoading = false
+        db.collection("menu_items").addSnapshotListener { snapshot, error ->
+            isLoadingMenu = false
+            if (error == null && snapshot != null) {
+                menuList = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(MenuItem::class.java)?.copy(id = doc.id)
+                }
             }
         }
     }
 
+    // Lắng nghe đơn hàng lọc theo customerId
+    LaunchedEffect(currentUserId) {
+        db.collection("orders")
+            .addSnapshotListener { snapshot, error ->
+                isLoadingOrders = false
+                if (error == null && snapshot != null) {
+                    val allOrders = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Order::class.java)?.copy(id = doc.id)
+                    }
+                    ordersList = if (currentUserId.isNotBlank()) {
+                        allOrders.filter { it.customerId == currentUserId }
+                            .sortedByDescending { it.createdAt }
+                    } else {
+                        allOrders.sortedByDescending { it.createdAt }
+                    }
+                }
+            }
+    }
+
     Scaffold(
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Trang chủ") },
+                    label = { Text("Trang chủ", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BluePrimary,
+                        selectedTextColor = BluePrimary,
+                        indicatorColor = BluePrimary.copy(alpha = 0.1f)
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "Đơn hàng") },
+                    label = { Text("Đơn hàng", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BluePrimary,
+                        selectedTextColor = BluePrimary,
+                        indicatorColor = BluePrimary.copy(alpha = 0.1f)
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = {
+                        val totalCount = cartItems.values.sumOf { it.quantity }
+                        if (totalCount > 0) {
+                            BadgedBox(
+                                badge = { Badge(containerColor = RedAccent) { Text("$totalCount") } }
+                            ) {
+                                Icon(Icons.Default.ShoppingCart, contentDescription = "Giỏ hàng")
+                            }
+                        } else {
+                            Icon(Icons.Default.ShoppingCart, contentDescription = "Giỏ hàng")
+                        }
+                    },
+                    label = { Text("Giỏ hàng", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BluePrimary,
+                        selectedTextColor = BluePrimary,
+                        indicatorColor = BluePrimary.copy(alpha = 0.1f)
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Tài khoản") },
+                    label = { Text("Tài khoản", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BluePrimary,
+                        selectedTextColor = BluePrimary,
+                        indicatorColor = BluePrimary.copy(alpha = 0.1f)
+                    )
+                )
+            }
+        },
         containerColor = BgLight
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(innerPadding)
         ) {
-            // Header: Vị trí bàn & Lời chào
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = RedAccent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Bàn 01 • Bếp Việt",
-                                fontSize = 13.sp,
-                                color = Color.Gray,
-                                fontWeight = FontWeight.Medium
-                            )
+            when (selectedTab) {
+                0 -> HomeTabContent(
+                    menuList = menuList,
+                    isLoading = isLoadingMenu,
+                    onNavigateToMenu = onNavigateToMenu,
+                    showAvatarMenu = showAvatarMenu,
+                    onToggleAvatarMenu = { isShow: Boolean -> showAvatarMenu = isShow },
+                    onNavigateToProfile = { selectedTab = 3 },
+                    onAddToCart = { menuItem: MenuItem ->
+                        val currentItem = cartItems[menuItem.id]
+                        if (currentItem != null) {
+                            cartItems[menuItem.id] = currentItem.copy(quantity = currentItem.quantity + 1)
+                        } else {
+                            cartItems[menuItem.id] = CartItem(menuItem = menuItem, quantity = 1)
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Xin chào Quý khách! 👋",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "Hôm nay bạn muốn thưởng thức món gì?",
-                            fontSize = 13.sp,
-                            color = Color.Gray
-                        )
+                        Toast.makeText(context, "Đã thêm ${menuItem.name} vào giỏ!", Toast.LENGTH_SHORT).show()
+                    },
+                    onLogout = onLogout
+                )
+
+                1 -> OrderHistoryTabContent(
+                    orders = ordersList,
+                    isLoading = isLoadingOrders,
+                    onOrderClick = { orderId: String ->
+                        onNavigateToTracking(orderId) // Bấm Xem chi tiết sẽ mở màn hình Tracking
                     }
+                )
 
-                    IconButton(
-                        onClick = onNavigateToOrders,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .background(Color.White, shape = CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Thông báo đơn",
-                            tint = BluePrimary
-                        )
+                2 -> CartTabContent(
+                    cartItems = cartItems,
+                    currentUserId = currentUserId,
+                    onNavigateToMenu = onNavigateToMenu,
+                    onOrderPlacedSuccess = { orderId: String ->
+                        cartItems.clear()
+                        selectedTab = 1 // Chuyển sẵn trạng thái màn hình chính sang Tab Đơn hàng
+                        onNavigateToTracking(orderId) // Đặt hàng thành công chuyển sang xem trạng thái ngay
                     }
-                }
-            }
+                )
 
-            // Thanh tìm kiếm giả (Bấm vào nhảy sang Menu)
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .clickable { onNavigateToMenu() }
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "Tìm món ăn, đồ uống, tráng miệng...", color = Color.Gray, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            // Banner quảng cáo "Hương vị Việt Nam"
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .height(150.dp)
-                        .clickable { onNavigateToMenu() },
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(BluePrimary, Color(0xFF1E88E5))
-                                )
-                            )
-                            .padding(18.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
-                            Column {
-                                Text(
-                                    text = "Hương vị Việt Nam",
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tinh hoa ẩm thực truyền thống",
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 13.sp
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = RedAccent
-                            ) {
-                                Text(
-                                    text = "Khám phá ngay →",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Danh mục món ăn
-            item {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "Danh mục", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "Xem tất cả >",
-                            color = BluePrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable { onNavigateToMenu() }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(categories) { cat ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable { onNavigateToMenu() }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(CircleShape)
-                                        .background(SurfaceGray),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = cat.name.take(1).uppercase(),
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BluePrimary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(text = cat.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Món nổi bật
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "Món nổi bật", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        text = "Xem tất cả >",
-                        color = BluePrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { onNavigateToMenu() }
-                    )
-                }
-            }
-
-            if (isLoading) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = BluePrimary)
-                    }
-                }
-            } else {
-                items(featuredItems) { item ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .clickable { onNavigateToMenu() },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = item.imageUrl.ifBlank { "https://via.placeholder.com/150" },
-                                contentDescription = item.name,
-                                modifier = Modifier
-                                    .size(70.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = item.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                if (item.description.isNotBlank()) {
-                                    Text(
-                                        text = item.description,
-                                        fontSize = 12.sp,
-                                        color = Color.Gray,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = currencyFormatter.format(item.price),
-                                    fontWeight = FontWeight.Bold,
-                                    color = RedAccent,
-                                    fontSize = 14.sp
-                                )
-                            }
-                            IconButton(
-                                onClick = onNavigateToMenu,
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .background(RedAccent, CircleShape)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
+                3 -> CustomerProfileScreen(onLogout = onLogout)
             }
         }
     }
