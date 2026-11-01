@@ -8,7 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-
+import com.google.firebase.firestore.FirebaseFirestoreException
 class OrderRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
@@ -73,4 +73,114 @@ class OrderRepository(
 
         awaitClose { listener.remove() }
     }
+
+
+    suspend fun confirmOrder(orderId: String): Result<Unit> {
+        return try {
+            val orderRef = ordersCollection.document(orderId)
+
+            firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(orderRef)
+
+                if (!snapshot.exists()) {
+                    throw IllegalStateException(
+                        "Đơn hàng không tồn tại"
+                    )
+                }
+
+                val currentStatus = snapshot.getString("status")
+
+                if (currentStatus != OrderStatus.PLACED.name) {
+                    throw IllegalStateException(
+                        "Chỉ có thể xác nhận đơn đang chờ"
+                    )
+                }
+
+                transaction.update(
+                    orderRef,
+                    "status",
+                    OrderStatus.CONFIRMED.name
+                )
+
+                Unit
+            }.await()
+
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+    suspend fun completeOrder(orderId: String): Result<Unit> {
+        return try {
+            val orderRef = ordersCollection.document(orderId)
+
+            firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(orderRef)
+
+                if (!snapshot.exists()) {
+                    throw IllegalStateException(
+                        "Đơn hàng không tồn tại"
+                    )
+                }
+
+                val currentStatus = snapshot.getString("status")
+
+                if (currentStatus != OrderStatus.READY.name) {
+                    throw IllegalStateException(
+                        "Chỉ có thể hoàn tất đơn ở trạng thái READY"
+                    )
+                }
+
+                transaction.update(
+                    orderRef,
+                    "status",
+                    OrderStatus.COMPLETED.name
+                )
+
+                Unit
+            }.await()
+
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+    fun observeOrderHistory(): Flow<List<Order>> = callbackFlow {
+        val listener = ordersCollection
+            .whereIn(
+                "status",
+                listOf(
+                    OrderStatus.COMPLETED.name,
+                    OrderStatus.CANCELLED.name
+                )
+            )
+            .addSnapshotListener { snapshot, error ->
+
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    val orders = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Order::class.java)
+                            ?.copy(id = doc.id)
+                    }
+
+                    trySend(orders)
+                }
+            }
+
+        awaitClose {
+            listener.remove()
+        }
+    }
+
+
 }
