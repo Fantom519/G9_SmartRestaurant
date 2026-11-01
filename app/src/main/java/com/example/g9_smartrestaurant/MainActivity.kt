@@ -7,19 +7,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.g9_smartrestaurant.model.CartItem
+import com.example.g9_smartrestaurant.model.UserRole
+import com.example.g9_smartrestaurant.ui.auth.LoginScreen
+import com.example.g9_smartrestaurant.ui.auth.RoleSelectionScreen
 import com.example.g9_smartrestaurant.ui.customer.CustomerHomeScreen
 import com.example.g9_smartrestaurant.ui.customer.MenuOrderScreen
 import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
+import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
-import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
-import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
-import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
+
+// Nhập import màn hình của bạn cùng nhóm (nếu có):
+// import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
+// import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,36 +49,103 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation() {
     val navController = rememberNavController()
 
+    // Khởi tạo giỏ hàng dùng chung cho toàn phân hệ Khách hàng
+    val cartItems = remember { mutableStateMapOf<String, CartItem>() }
+
     NavHost(
         navController = navController,
-        //startDestination = "home"
-        startDestination = "staff/orders"
+        startDestination = "role_selection"
     ) {
-        // Màn hình 1: Trang chủ Khách hàng
-        composable("home") {
-            CustomerHomeScreen(
-                onNavigateToMenu = {
-                    navController.navigate("menu")
-                },
-                onNavigateToOrders = {
-                    navController.navigate("menu")
+        // 1. Màn hình Chọn Vai Trò
+        composable("role_selection") {
+            RoleSelectionScreen(
+                onRoleSelected = { role ->
+                    navController.navigate("login/${role.name}")
                 }
             )
         }
 
-        // Màn hình 2: Đặt món, tìm kiếm, giỏ hàng, ghi chú
+        // 2. Màn hình Đăng nhập (Truyền vai trò đang chọn)
+        composable(
+            route = "login/{role}",
+            arguments = listOf(navArgument("role") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val roleStr = backStackEntry.arguments?.getString("role") ?: UserRole.CUSTOMER.name
+            val role = try { UserRole.valueOf(roleStr) } catch (e: Exception) { UserRole.CUSTOMER }
+
+            LoginScreen(
+                role = role,
+                onNavigateBack = { navController.popBackStack() },
+                onLoginSuccess = { userRole ->
+                    // Điều hướng chính xác theo vai trò đã được Firestore xác thực
+                    when (userRole) {
+                        UserRole.CUSTOMER -> navController.navigate("customer_home") {
+                            popUpTo("role_selection") { inclusive = true }
+                        }
+                        UserRole.STAFF -> navController.navigate("staff_home") {
+                            popUpTo("role_selection") { inclusive = true }
+                        }
+                        UserRole.KITCHEN -> navController.navigate("kitchen_home") {
+                            popUpTo("role_selection") { inclusive = true }
+                        }
+                        UserRole.MANAGER -> navController.navigate("manager_home") {
+                            popUpTo("role_selection") { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
+
+        // --- PHÂN HỆ KHÁCH HÀNG (CUSTOMER) ---
+        composable("customer_home") {
+            CustomerHomeScreen(
+                cartItems = cartItems,
+                initialTab = 0,
+                onNavigateToMenu = { navController.navigate("menu") },
+                onNavigateToTracking = { orderId ->
+                    navController.navigate("tracking/$orderId")
+                },
+                onLogout = {
+                    cartItems.clear()
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // Route mở trực tiếp Tab Giỏ hàng
+        composable("customer_home_cart") {
+            CustomerHomeScreen(
+                cartItems = cartItems,
+                initialTab = 2,
+                onNavigateToMenu = { navController.navigate("menu") },
+                onNavigateToTracking = { orderId ->
+                    navController.navigate("tracking/$orderId")
+                },
+                onLogout = {
+                    cartItems.clear()
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // Màn hình chọn Thực đơn chi tiết
         composable("menu") {
             MenuOrderScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onOrderPlacedSuccess = { orderId ->
-                    navController.navigate("tracking/$orderId")
+                cartItems = cartItems,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToCart = {
+                    navController.navigate("customer_home_cart") {
+                        popUpTo("customer_home") { inclusive = true }
+                    }
                 }
             )
         }
 
-        // Màn hình 3: Theo dõi trạng thái đơn hàng thời gian thực
+        // Màn hình Theo dõi trạng thái đơn hàng (Tracking)
         composable(
             route = "tracking/{orderId}",
             arguments = listOf(navArgument("orderId") { type = NavType.StringType })
@@ -79,55 +154,30 @@ fun AppNavigation() {
             OrderTrackingScreen(
                 orderId = orderId,
                 onNavigateBack = {
-                    navController.navigate("home") {
-                        popUpTo("home") { inclusive = true }
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // --- PHÂN HỆ NHÂN VIÊN (STAFF) ---
+        composable("staff_home") {
+            // StaffOrderScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+        }
+
+        // --- PHÂN HỆ BẾP (KITCHEN) ---
+        composable("kitchen_home") {
+            // KitchenQueueScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+        }
+
+        // --- PHÂN HỆ QUẢN LÝ (MANAGER) ---
+        composable("manager_home") {
+            ManagerDashboardScreen(
+                onLogout = {
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
         }
-
-        composable("staff/orders") {
-            StaffOrderScreen(
-                onOrderClick = { orderId ->
-                    navController.navigate("staff/order/$orderId")
-                },
-                onNavigateToHistory = {
-                    navController.navigate("staff/history")
-                }
-            )
-        }
-
-        composable(
-            route = "staff/order/{orderId}",
-            arguments = listOf(
-                navArgument("orderId") {
-                    type = NavType.StringType
-                }
-            )
-        ) { backStackEntry ->
-
-            val orderId =
-                backStackEntry.arguments?.getString("orderId") ?: ""
-
-            StaffOrderDetailScreen(
-                orderId = orderId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-
-        composable("staff/history") {
-            StaffOrderHistoryScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onOrderClick = { orderId ->
-                    navController.navigate("staff/order/$orderId")
-                }
-            )
-        }
-
     }
 }

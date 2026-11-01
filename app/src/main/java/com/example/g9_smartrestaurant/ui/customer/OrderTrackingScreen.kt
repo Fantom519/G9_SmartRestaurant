@@ -13,41 +13,50 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.g9_smartrestaurant.model.Order
-import com.example.g9_smartrestaurant.model.OrderStatus
-import com.example.g9_smartrestaurant.repository.OrderRepository
 import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
-import com.example.g9_smartrestaurant.ui.theme.RedAccent
-import com.example.g9_smartrestaurant.ui.theme.SurfaceGray
-import java.text.NumberFormat
-import java.util.Locale
+import com.google.firebase.firestore.FirebaseFirestore
+import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderTrackingScreen(
     orderId: String,
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit
 ) {
-    val orderRepository = remember { OrderRepository() }
-    val orderState by orderRepository.observeOrderById(orderId).collectAsState(initial = null)
+    val db = remember { FirebaseFirestore.getInstance() }
+    val formatter = remember { DecimalFormat("#,###đ") }
 
-    val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("vi").setRegion("VN").build())
+    var order by remember { mutableStateOf<Order?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Lắng nghe Realtime trạng thái đơn hàng từ Firestore
+    LaunchedEffect(orderId) {
+        if (orderId.isNotBlank()) {
+            db.collection("orders").document(orderId)
+                .addSnapshotListener { snapshot, error ->
+                    isLoading = false
+                    if (error == null && snapshot != null && snapshot.exists()) {
+                        order = snapshot.toObject(Order::class.java)?.copy(id = snapshot.id)
+                    }
+                }
+        } else {
+            isLoading = false
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Theo dõi đơn hàng", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                title = { Text("Theo dõi đơn hàng", fontWeight = FontWeight.Bold, color = BluePrimary) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = BluePrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BgLight)
@@ -55,76 +64,117 @@ fun OrderTrackingScreen(
         },
         containerColor = BgLight
     ) { innerPadding ->
-        val currentOrder = orderState
-        if (currentOrder == null) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BluePrimary)
             }
+        } else if (order == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                Text("Không tìm thấy dữ liệu đơn hàng", color = Color.Gray)
+            }
         } else {
+            val currentOrder = order!!
+            val statusStr = try { currentOrder.status.name } catch (e: Exception) { currentOrder.status.toString() }
+
+            // Xác định bước hiện tại (1: Đã đặt, 2: Đã duyệt, 3: Đang nấu, 4: Xong món)
+            val currentStep = when {
+                statusStr.contains("COMPLETED", ignoreCase = true) || statusStr.contains("SERVED", ignoreCase = true) || statusStr.contains("READY", ignoreCase = true) -> 4
+                statusStr.contains("PREPARING", ignoreCase = true) || statusStr.contains("COOKING", ignoreCase = true) -> 3
+                statusStr.contains("CONFIRMED", ignoreCase = true) -> 2
+                else -> 1
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(16.dp)
             ) {
-                // Thẻ thông tin đơn hàng
+                // Khối Thanh Trạng Thái Tiến Trình (Timeline)
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Bàn: ${currentOrder.tableNumber}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text(text = "#${currentOrder.id.takeLast(6).uppercase()}", color = Color.Gray, fontSize = 14.sp)
+                            Text("Bàn: ${currentOrder.tableNumber.ifBlank { "Bàn 101" }}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("#${currentOrder.id.takeLast(6).uppercase()}", color = Color.Gray, fontSize = 13.sp)
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
-                        // Stepper tiến trình trạng thái
-                        OrderProgressBar(status = currentOrder.status)
+                        // Vẽ 4 bước trạng thái
+                        val steps = listOf("Đã đặt", "Đã duyệt", "Đang nấu", "Xong món")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            steps.forEachIndexed { index, title ->
+                                val stepNumber = index + 1
+                                val isDone = stepNumber <= currentStep
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(
+                                                color = if (isDone) BluePrimary else Color(0xFFE0E0E0),
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isDone) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = title,
+                                        fontSize = 11.sp,
+                                        color = if (isDone) BluePrimary else Color.Gray,
+                                        fontWeight = if (isDone) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Danh sách món đã đặt
-                Text(text = "Món đã gọi", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Món đã gọi", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // Danh sách món ăn chi tiết
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
-                    items(currentOrder.items) { item ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
-                        ) {
+                    LazyColumn(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(currentOrder.items) { item ->
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "${item.quantity}x ${item.name}", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                    Text("${item.quantity}x ${item.name}", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                                     if (item.notes.isNotBlank()) {
-                                        Text(text = "Ghi chú: ${item.notes}", fontSize = 12.sp, color = RedAccent)
+                                        Text("Ghi chú: ${item.notes}", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
-                                Text(
-                                    text = currencyFormatter.format(item.price * item.quantity),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
+                                Text(formatter.format(item.price * item.quantity), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
                         }
                     }
@@ -132,88 +182,21 @@ fun OrderTrackingScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Tổng thanh toán
-                Surface(
-                    color = Color.White,
-                    shape = RoundedCornerShape(12.dp),
+                // Khối Tổng thanh toán
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Tổng thanh toán", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(
-                            text = currencyFormatter.format(currentOrder.total),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = RedAccent
-                        )
+                        Text("Tổng thanh toán", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(formatter.format(currentOrder.total), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = BluePrimary)
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun OrderProgressBar(status: OrderStatus) {
-    val steps = listOf(
-        OrderStatus.PLACED to "Đã đặt",
-        OrderStatus.CONFIRMED to "Đã duyệt",
-        OrderStatus.PREPARING to "Đang nấu",
-        OrderStatus.READY to "Xong món"
-    )
-
-    val currentStepIndex = when (status) {
-        OrderStatus.PLACED -> 0
-        OrderStatus.CONFIRMED -> 1
-        OrderStatus.PREPARING -> 2
-        OrderStatus.READY, OrderStatus.COMPLETED -> 3
-        OrderStatus.CANCELLED -> -1
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        steps.forEachIndexed { index, pair ->
-            val isDone = index <= currentStepIndex
-            val isCurrent = index == currentStepIndex
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(if (isDone) BluePrimary else SurfaceGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isDone) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    } else {
-                        Text(text = "${index + 1}", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = pair.second,
-                    fontSize = 11.sp,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isCurrent) BluePrimary else Color.Gray
-                )
-            }
-
-            if (index < steps.size - 1) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(2.dp)
-                        .padding(horizontal = 4.dp)
-                        .background(if (index < currentStepIndex) BluePrimary else SurfaceGray)
-                )
             }
         }
     }
