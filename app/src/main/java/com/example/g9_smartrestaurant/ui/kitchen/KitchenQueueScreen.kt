@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,12 +30,18 @@ fun KitchenQueueScreen(
     viewModel: KitchenViewModel = viewModel()
 ) {
     val orders by viewModel.orders.collectAsState()
+    val historyOrders by viewModel.historyOrders.collectAsState()
+
+    var isHistoryMode by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf<OrderStatus?>(null) }
 
+    // Chọn nguồn danh sách: Đơn hôm nay hoặc Lịch sử đơn ngày trước
+    val activeList = if (isHistoryMode) historyOrders else orders
+
     val filteredOrders = if (selectedFilter == null) {
-        orders
+        activeList
     } else {
-        orders.filter { it.status == selectedFilter }
+        activeList.filter { it.status == selectedFilter }
     }
 
     Scaffold(
@@ -42,11 +49,40 @@ fun KitchenQueueScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Màn Hình Bếp (KDS)", fontWeight = FontWeight.Bold)
                         Text(
-                            "Quản lý & Chế biến món ăn trong ngày",
+                            text = if (isHistoryMode) "Lịch Sử Đơn Bếp" else "Màn Hình Bếp (KDS)",
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isHistoryMode) "Đơn hàng các ngày trước" else "Quản lý & Chế biến món hôm nay",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                actions = {
+                    // Nút bấm chuyển đổi giữa Đơn hôm nay và Lịch sử
+                    Button(
+                        onClick = {
+                            isHistoryMode = !isHistoryMode
+                            selectedFilter = null
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isHistoryMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = if (isHistoryMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isHistoryMode) "Đơn hôm nay" else "Lịch sử",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 },
@@ -69,19 +105,19 @@ fun KitchenQueueScreen(
             ) {
                 StatCard(
                     title = "Chờ nấu",
-                    count = orders.count { it.status == OrderStatus.CONFIRMED },
+                    count = activeList.count { it.status == OrderStatus.CONFIRMED },
                     color = Color(0xFFE53935),
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
                     title = "Đang nấu",
-                    count = orders.count { it.status == OrderStatus.PREPARING },
+                    count = activeList.count { it.status == OrderStatus.PREPARING },
                     color = Color(0xFFFB8C00),
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
                     title = "Sẵn sàng",
-                    count = orders.count { it.status == OrderStatus.READY },
+                    count = activeList.count { it.status == OrderStatus.READY },
                     color = Color(0xFF43A047),
                     modifier = Modifier.weight(1f)
                 )
@@ -113,13 +149,16 @@ fun KitchenQueueScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Danh sách đơn hàng trong bếp
+            // 3. Danh sách đơn hàng
             if (filteredOrders.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Không có đơn hàng nào trong ngày hôm nay", color = Color.Gray)
+                    Text(
+                        text = if (isHistoryMode) "Không có đơn hàng nào trong lịch sử" else "Không có đơn hàng nào trong ngày hôm nay",
+                        color = Color.Gray
+                    )
                 }
             } else {
                 LazyColumn(
@@ -167,7 +206,6 @@ fun KitchenOrderCard(
         else -> order.status.name to Color.Gray
     }
 
-    // Định dạng hiển thị giờ:phút - ngày/tháng/năm
     val formattedDateTime = remember(order.createdAt) {
         val sdf = SimpleDateFormat("HH:mm - dd/MM/yyyy", Locale.getDefault())
         sdf.format(Date(order.createdAt))
@@ -199,7 +237,6 @@ fun KitchenOrderCard(
                             color = Color.Gray
                         )
                     }
-                    // Dòng hiển thị ngày giờ đặt món
                     Text(
                         text = "Đặt lúc: $formattedDateTime",
                         fontSize = 12.sp,
