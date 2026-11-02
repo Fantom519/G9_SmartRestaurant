@@ -24,6 +24,8 @@ import com.example.g9_smartrestaurant.ui.customer.MenuOrderScreen
 import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
 import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
 
 // Nhập import màn hình của bạn cùng nhóm (nếu có):
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
@@ -160,8 +162,40 @@ fun AppNavigation() {
         }
 
         // --- PHÂN HỆ NHÂN VIÊN (STAFF) ---
+
         composable("staff_home") {
-            // StaffOrderScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+            StaffOrderScreen(
+                onOrderClick = { orderId ->
+                    navController.navigate("staff_order_detail/$orderId")
+                },
+                onNavigateToHistory = {
+                    navController.navigate("staff_history")
+                }
+            )
+        }
+
+        composable("staff_order_detail/{orderId}") { backStackEntry ->
+            val orderId = backStackEntry.arguments
+                ?.getString("orderId")
+                .orEmpty()
+
+            StaffOrderDetailScreen(
+                orderId = orderId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("staff_history") {
+            StaffOrderHistoryScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOrderClick = { orderId ->
+                    navController.navigate("staff_order_detail/$orderId")
+                }
+            )
         }
 
         // --- PHÂN HỆ BẾP (KITCHEN) ---
