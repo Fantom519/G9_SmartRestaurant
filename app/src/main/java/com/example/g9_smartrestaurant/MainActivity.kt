@@ -26,10 +26,10 @@ import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
-
 // Nhập import màn hình của bạn cùng nhóm (nếu có):
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
 import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -170,6 +170,16 @@ fun AppNavigation() {
                 },
                 onNavigateToHistory = {
                     navController.navigate("staff_history")
+                },
+                onLogout = {
+                    FirebaseAuth.getInstance().signOut()
+
+                    navController.navigate("role_selection") {
+                        popUpTo(navController.graph.id) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
