@@ -22,12 +22,10 @@ import com.example.g9_smartrestaurant.ui.auth.RoleSelectionScreen
 import com.example.g9_smartrestaurant.ui.customer.CustomerHomeScreen
 import com.example.g9_smartrestaurant.ui.customer.MenuOrderScreen
 import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
-import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
-import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
-
-// Nhập import màn hình của bạn cùng nhóm (nếu có):
-import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
 import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
+import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
+import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -161,12 +159,18 @@ fun AppNavigation() {
 
         // --- PHÂN HỆ NHÂN VIÊN (STAFF) ---
         composable("staff_home") {
-            // StaffOrderScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+            StaffOrderScreen()
         }
 
         // --- PHÂN HỆ BẾP (KITCHEN) ---
         composable("kitchen_home") {
-            // KitchenQueueScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+            KitchenQueueScreen(
+                onLogout = {
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // --- PHÂN HỆ QUẢN LÝ (MANAGER) ---

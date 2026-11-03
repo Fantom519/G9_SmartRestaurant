@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -191,6 +192,25 @@ fun CustomerHomeScreen(
 
                 3 -> CustomerProfileScreen(onLogout = onLogout)
             }
+        }
+    }
+}
+@Composable
+fun CartTabContent(
+    cartItems: SnapshotStateMap<String, CartItem>,
+    currentUserId: String = "",
+    onNavigateToMenu: () -> Unit,
+    onOrderPlacedSuccess: (String) -> Unit
+) {
+    // Giao diện giỏ hàng tạm thời
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (cartItems.isEmpty()) {
+            Text("Giỏ hàng của bạn đang trống")
+        } else {
+            Text("Có ${cartItems.size} món trong giỏ hàng")
         }
     }
 }
