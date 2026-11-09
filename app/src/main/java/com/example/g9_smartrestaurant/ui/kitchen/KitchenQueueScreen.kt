@@ -37,7 +37,7 @@ val GreenSection = Color(0xFF2A9D8F)    // Xanh lá - Hoàn thành
 @Composable
 fun KitchenQueueScreen(
     viewModel: KitchenViewModel = viewModel(),
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit
 ) {
     val orders by viewModel.orders.collectAsState()
 

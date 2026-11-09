@@ -28,18 +28,22 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun CustomerHomeScreen(
     cartItems: SnapshotStateMap<String, CartItem>,
-    initialTab: Int = 0, // Mặc định là 0 (Trang chủ), truyền 2 khi chuyển từ Thực đơn sang Giỏ hàng
+    initialTab: Int = 0,
+    selectedTableNumber: String,
+    onTableSelected: (String) -> Unit,
     onNavigateToMenu: () -> Unit,
-    onNavigateToTracking: (String) -> Unit, // Điều hướng sang màn hình Thanh trạng thái
+    onNavigateToTracking: (String) -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val db = remember { FirebaseFirestore.getInstance() }
     val currentUserId = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "" }
 
-    // Khởi tạo tab hiển thị theo initialTab
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var showAvatarMenu by remember { mutableStateOf(false) }
+
+    // STATE BÀN DÙNG CHUNG TOÀN BỘ PHÂN HỆ KHÁCH HÀNG (GIỮ NGUYÊN KHI CHUYỂN TAB)
+    var showTableDialog by remember { mutableStateOf(false) }
 
     var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var isLoadingMenu by remember { mutableStateOf(true) }
@@ -155,6 +159,8 @@ fun CustomerHomeScreen(
                 0 -> HomeTabContent(
                     menuList = menuList,
                     isLoading = isLoadingMenu,
+                    selectedTableNumber = selectedTableNumber,
+                    onOpenTableDialog = { showTableDialog = true },
                     onNavigateToMenu = onNavigateToMenu,
                     showAvatarMenu = showAvatarMenu,
                     onToggleAvatarMenu = { isShow: Boolean -> showAvatarMenu = isShow },
@@ -175,18 +181,20 @@ fun CustomerHomeScreen(
                     orders = ordersList,
                     isLoading = isLoadingOrders,
                     onOrderClick = { orderId: String ->
-                        onNavigateToTracking(orderId) // Bấm Xem chi tiết sẽ mở màn hình Tracking
+                        onNavigateToTracking(orderId)
                     }
                 )
 
                 2 -> CartTabContent(
                     cartItems = cartItems,
                     currentUserId = currentUserId,
+                    selectedTableNumber = selectedTableNumber,
+                    onOpenTableDialog = { showTableDialog = true },
                     onNavigateToMenu = onNavigateToMenu,
                     onOrderPlacedSuccess = { orderId: String ->
                         cartItems.clear()
-                        selectedTab = 1 // Chuyển sẵn trạng thái màn hình chính sang Tab Đơn hàng
-                        onNavigateToTracking(orderId) // Đặt hàng thành công chuyển sang xem trạng thái ngay
+                        selectedTab = 1
+                        onNavigateToTracking(orderId)
                     }
                 )
 
@@ -194,23 +202,16 @@ fun CustomerHomeScreen(
             }
         }
     }
-}
-@Composable
-fun CartTabContent(
-    cartItems: SnapshotStateMap<String, CartItem>,
-    currentUserId: String = "",
-    onNavigateToMenu: () -> Unit,
-    onOrderPlacedSuccess: (String) -> Unit
-) {
-    // Giao diện giỏ hàng tạm thời
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        if (cartItems.isEmpty()) {
-            Text("Giỏ hàng của bạn đang trống")
-        } else {
-            Text("Có ${cartItems.size} món trong giỏ hàng")
-        }
+
+    // DIALOG QUÉT QR / CHỌN BÀN TOÀN CỤC
+    if (showTableDialog) {
+        TableSelectionDialog(
+            currentTable = selectedTableNumber,
+            onTableSelected = { newTable ->
+                onTableSelected(newTable)
+                showTableDialog = false
+            },
+            onDismiss = { showTableDialog = false }
+        )
     }
 }
