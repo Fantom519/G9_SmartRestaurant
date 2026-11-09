@@ -29,13 +29,17 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 
 @Composable
 fun StaffOrderScreen(
     onOrderClick: (String) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
-    staffViewModel: StaffViewModel = viewModel(),
-    onLogout: () -> Unit
+    onLogout: () -> Unit = {},
+    staffViewModel: StaffViewModel = viewModel()
 ) {
     val orders by staffViewModel.orders.collectAsStateWithLifecycle()
     val isLoading by staffViewModel.isLoading.collectAsStateWithLifecycle()
@@ -60,7 +64,7 @@ fun StaffOrderScreen(
     ) {
 
         // HEADER THƯƠNG HIỆU
-        StaffHeader()
+        StaffHeader(onLogout = onLogout)
 
         // THỐNG KÊ VÀ DANH SÁCH
         Column(
@@ -254,8 +258,15 @@ fun StaffOrderScreen(
     }
 }
 
+
 @Composable
-private fun StaffHeader() {
+private fun StaffHeader(
+    onLogout: () -> Unit
+) {
+    var showLogoutDialog by remember {
+        mutableStateOf(false)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -264,27 +275,80 @@ private fun StaffHeader() {
                 horizontal = 20.dp,
                 vertical = 20.dp
             ),
-        verticalArrangement =
-            Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = "G9 SMART RESTAURANT",
-            style = MaterialTheme.typography.labelMedium,
-            color = Color(0xFFDDE8FA),
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "G9 SMART RESTAURANT",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFFDDE8FA),
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+
+            IconButton(
+                onClick = {
+                    showLogoutDialog = true
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                    contentDescription = "Đăng xuất",
+                    tint = Color.White
+                )
+            }
+        }
 
         Text(
             text = "Quản lý đơn hàng",
             style = MaterialTheme.typography.headlineSmall,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
 
         Text(
-            text = "Nhân viên phục vụ",
+            text = "Theo dõi và cập nhật trạng thái đơn hàng",
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFFE8EEF5)
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showLogoutDialog = false
+            },
+            title = {
+                Text("Xác nhận đăng xuất")
+            },
+            text = {
+                Text(
+                    "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản nhân viên?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }
+                ) {
+                    Text("Đăng xuất")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                    }
+                ) {
+                    Text("Hủy")
+                }
+            }
         )
     }
 }

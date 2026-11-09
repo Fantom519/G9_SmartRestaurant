@@ -26,6 +26,9 @@ import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
 import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
 import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
 import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderDetailScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderHistoryScreen
+import com.google.firebase.auth.FirebaseAuth
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
 
 class MainActivity : ComponentActivity() {
@@ -167,13 +170,49 @@ fun AppNavigation() {
         // --- PHÂN HỆ NHÂN VIÊN (STAFF) ---
         composable("staff_home") {
             StaffOrderScreen(
+                onOrderClick = { orderId ->
+                    navController.navigate("staff_order_detail/$orderId")
+                },
+                onNavigateToHistory = {
+                    navController.navigate("staff_history")
+                },
                 onLogout = {
+                    FirebaseAuth.getInstance().signOut()
+
                     navController.navigate("role_selection") {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(navController.graph.id) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
                     }
                 }
             )
         }
+
+        composable("staff_order_detail/{orderId}") { backStackEntry ->
+            val orderId = backStackEntry.arguments
+                ?.getString("orderId")
+                .orEmpty()
+
+            StaffOrderDetailScreen(
+                orderId = orderId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("staff_history") {
+            StaffOrderHistoryScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOrderClick = { orderId ->
+                    navController.navigate("staff_order_detail/$orderId")
+                }
+            )
+        }
+
 
         // --- PHÂN HỆ BẾP (KITCHEN) ---
         composable("kitchen_home") {
