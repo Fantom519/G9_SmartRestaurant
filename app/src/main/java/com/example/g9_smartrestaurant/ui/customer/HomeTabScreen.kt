@@ -36,6 +36,8 @@ import java.text.DecimalFormat
 fun HomeTabContent(
     menuList: List<MenuItem>,
     isLoading: Boolean,
+    selectedTableNumber: String,       // THÊM: Số bàn đang chọn động
+    onOpenTableDialog: () -> Unit,     // THÊM: Callback mở Dialog chọn / Quét QR bàn
     onNavigateToMenu: () -> Unit,
     showAvatarMenu: Boolean,
     onToggleAvatarMenu: (Boolean) -> Unit,
@@ -54,7 +56,7 @@ fun HomeTabContent(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Header
+        // HEADER TRANG CHỦ
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -76,10 +78,25 @@ fun HomeTabContent(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = RedAccent, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("Nhà hàng Bếp Việt - Bàn 101", fontSize = 12.sp, color = Color.Gray)
+                // KHỐI HIỂN THỊ SỐ BÀN ĐỘNG & NÚT ĐỔI / QUÉT QR
+                Surface(
+                    modifier = Modifier.clickable { onOpenTableDialog() },
+                    shape = RoundedCornerShape(6.dp),
+                    color = RedAccent.copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = RedAccent, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "Vị trí: $selectedTableNumber (Đổi / Quét QR ➔)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RedAccent
+                        )
+                    }
                 }
             }
 

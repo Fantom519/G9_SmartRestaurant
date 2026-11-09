@@ -34,7 +34,8 @@ import java.util.Locale
 fun StaffOrderScreen(
     onOrderClick: (String) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
-    staffViewModel: StaffViewModel = viewModel()
+    staffViewModel: StaffViewModel = viewModel(),
+    onLogout: () -> Unit
 ) {
     val orders by staffViewModel.orders.collectAsStateWithLifecycle()
     val isLoading by staffViewModel.isLoading.collectAsStateWithLifecycle()

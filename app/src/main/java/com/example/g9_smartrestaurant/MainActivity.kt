@@ -6,9 +6,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,12 +23,10 @@ import com.example.g9_smartrestaurant.ui.auth.RoleSelectionScreen
 import com.example.g9_smartrestaurant.ui.customer.CustomerHomeScreen
 import com.example.g9_smartrestaurant.ui.customer.MenuOrderScreen
 import com.example.g9_smartrestaurant.ui.customer.OrderTrackingScreen
+import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
 import com.example.g9_smartrestaurant.ui.manager.ManagerDashboardScreen
+import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
 import com.example.g9_smartrestaurant.ui.theme.G9_SmartRestaurantTheme
-
-// Nhập import màn hình của bạn cùng nhóm (nếu có):
-// import com.example.g9_smartrestaurant.ui.staff.StaffOrderScreen
-// import com.example.g9_smartrestaurant.ui.kitchen.KitchenQueueScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,8 +48,9 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    // Khởi tạo giỏ hàng dùng chung cho toàn phân hệ Khách hàng
+    // Khởi tạo Giỏ hàng VÀ Số bàn dùng chung toàn ứng dụng (Duy trì khi chuyển giữa các màn hình)
     val cartItems = remember { mutableStateMapOf<String, CartItem>() }
+    var selectedTableNumber by rememberSaveable { mutableStateOf("Bàn 01") }
 
     NavHost(
         navController = navController,
@@ -77,7 +77,6 @@ fun AppNavigation() {
                 role = role,
                 onNavigateBack = { navController.popBackStack() },
                 onLoginSuccess = { userRole ->
-                    // Điều hướng chính xác theo vai trò đã được Firestore xác thực
                     when (userRole) {
                         UserRole.CUSTOMER -> navController.navigate("customer_home") {
                             popUpTo("role_selection") { inclusive = true }
@@ -101,12 +100,15 @@ fun AppNavigation() {
             CustomerHomeScreen(
                 cartItems = cartItems,
                 initialTab = 0,
+                selectedTableNumber = selectedTableNumber,
+                onTableSelected = { newTable -> selectedTableNumber = newTable },
                 onNavigateToMenu = { navController.navigate("menu") },
                 onNavigateToTracking = { orderId ->
                     navController.navigate("tracking/$orderId")
                 },
                 onLogout = {
                     cartItems.clear()
+                    selectedTableNumber = "Bàn 01"
                     navController.navigate("role_selection") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -119,12 +121,15 @@ fun AppNavigation() {
             CustomerHomeScreen(
                 cartItems = cartItems,
                 initialTab = 2,
+                selectedTableNumber = selectedTableNumber,
+                onTableSelected = { newTable -> selectedTableNumber = newTable }, // 👈 Đã bổ sung dòng bị thiếu
                 onNavigateToMenu = { navController.navigate("menu") },
                 onNavigateToTracking = { orderId ->
                     navController.navigate("tracking/$orderId")
                 },
                 onLogout = {
                     cartItems.clear()
+                    selectedTableNumber = "Bàn 01"
                     navController.navigate("role_selection") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -161,17 +166,32 @@ fun AppNavigation() {
 
         // --- PHÂN HỆ NHÂN VIÊN (STAFF) ---
         composable("staff_home") {
-            // StaffOrderScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+            StaffOrderScreen(
+                onLogout = {
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // --- PHÂN HỆ BẾP (KITCHEN) ---
         composable("kitchen_home") {
-            // KitchenQueueScreen() // Bỏ comment khi bạn cùng nhóm đẩy code
+            KitchenQueueScreen(
+                onLogout = {
+                    navController.navigate("role_selection") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // --- PHÂN HỆ QUẢN LÝ (MANAGER) ---
         composable("manager_home") {
             ManagerDashboardScreen(
+                onNavigateToTracking = { orderId ->
+                    navController.navigate("tracking/$orderId")
+                },
                 onLogout = {
                     navController.navigate("role_selection") {
                         popUpTo(0) { inclusive = true }
