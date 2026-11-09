@@ -26,7 +26,8 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KitchenQueueScreen(
-    viewModel: KitchenViewModel = viewModel()
+    viewModel: KitchenViewModel = viewModel(),
+    onLogout: () -> Unit
 ) {
     val orders by viewModel.orders.collectAsState()
     var selectedFilter by remember { mutableStateOf<OrderStatus?>(null) }

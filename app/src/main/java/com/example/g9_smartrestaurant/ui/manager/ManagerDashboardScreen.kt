@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.g9_smartrestaurant.model.MenuItem
 import com.example.g9_smartrestaurant.model.Order
+import com.example.g9_smartrestaurant.ui.components.TableManagementScreen
 import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
@@ -43,13 +45,15 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManagerDashboardScreen(
+    onNavigateToTracking: (String) -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val db = remember { FirebaseFirestore.getInstance() }
     val auth = remember { FirebaseAuth.getInstance() }
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Tổng quan, 1: Thực đơn, 2: Đơn hàng, 3: Tài khoản
+    // 0: Tổng quan, 1: Sơ đồ bàn, 2: Thực đơn, 3: Đơn hàng, 4: Tài khoản
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var isLoadingMenu by remember { mutableStateOf(true) }
@@ -121,11 +125,12 @@ fun ManagerDashboardScreen(
                 containerColor = Color.White,
                 tonalElevation = 8.dp
             ) {
+                // Tab 0: Tổng quan
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.BarChart, contentDescription = "Tổng quan") },
-                    label = { Text("Tổng quan", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    label = { Text("Tổng quan", fontSize = 10.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = BluePrimary,
                         selectedTextColor = BluePrimary,
@@ -133,11 +138,12 @@ fun ManagerDashboardScreen(
                     )
                 )
 
+                // Tab 1: Sơ đồ bàn
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.RestaurantMenu, contentDescription = "Thực đơn") },
-                    label = { Text("Thực đơn", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    icon = { Icon(Icons.Default.TableRestaurant, contentDescription = "Sơ đồ bàn") },
+                    label = { Text("Sơ đồ bàn", fontSize = 10.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = BluePrimary,
                         selectedTextColor = BluePrimary,
@@ -145,9 +151,23 @@ fun ManagerDashboardScreen(
                     )
                 )
 
+                // Tab 2: Thực đơn
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.RestaurantMenu, contentDescription = "Thực đơn") },
+                    label = { Text("Thực đơn", fontSize = 10.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BluePrimary,
+                        selectedTextColor = BluePrimary,
+                        indicatorColor = BluePrimary.copy(alpha = 0.1f)
+                    )
+                )
+
+                // Tab 3: Đơn hàng
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = {
                         val activeOrders = ordersList.count { !it.status.name.contains("COMPLETED") && !it.status.name.contains("CANCELLED") }
                         if (activeOrders > 0) {
@@ -158,7 +178,7 @@ fun ManagerDashboardScreen(
                             Icon(Icons.Default.ReceiptLong, contentDescription = "Đơn hàng")
                         }
                     },
-                    label = { Text("Đơn hàng", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    label = { Text("Đơn hàng", fontSize = 10.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = BluePrimary,
                         selectedTextColor = BluePrimary,
@@ -166,11 +186,12 @@ fun ManagerDashboardScreen(
                     )
                 )
 
+                // Tab 4: Tài khoản
                 NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
                     icon = { Icon(Icons.Default.Person, contentDescription = "Tài khoản") },
-                    label = { Text("Tài khoản", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    label = { Text("Tài khoản", fontSize = 10.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = BluePrimary,
                         selectedTextColor = BluePrimary,
@@ -192,22 +213,29 @@ fun ManagerDashboardScreen(
                     menuList = menuList,
                     onOrderClick = { selectedOrderForDetail = it }
                 )
-                1 -> ManagerMenuTab(menuList = menuList, isLoading = isLoadingMenu, db = db)
-                2 -> ManagerOrdersTab(
+                1 -> TableManagementScreen(
+                    onOrderClick = { selectedOrderForDetail = it }
+                )
+                2 -> ManagerMenuTab(menuList = menuList, isLoading = isLoadingMenu, db = db)
+                3 -> ManagerOrdersTab(
                     ordersList = ordersList,
                     isLoading = isLoadingOrders,
                     onOrderClick = { selectedOrderForDetail = it }
                 )
-                3 -> ManagerProfileTab(onLogout = onLogout)
+                4 -> ManagerProfileTab(onLogout = onLogout)
             }
         }
     }
 
-    // POPUP XEM CHI TIẾT ĐƠN HÀNG (CHỈ XEM - KHÔNG ĐỔI TRẠNG THÁI)
+    // POPUP XEM CHI TIẾT ĐƠN HÀNG
     selectedOrderForDetail?.let { order ->
         OrderDetailDialog(
             order = order,
-            onDismiss = { selectedOrderForDetail = null }
+            onDismiss = { selectedOrderForDetail = null },
+            onNavigateToTracking = { orderId ->
+                selectedOrderForDetail = null
+                onNavigateToTracking(orderId)
+            }
         )
     }
 }
@@ -223,7 +251,6 @@ fun ManagerOverviewTab(
 ) {
     val formatter = remember { DecimalFormat("#,###đ") }
 
-    // Bộ lọc thời gian: 0: Hôm nay, 1: 7 ngày qua, 2: Tháng này, 3: Tất cả
     var timeFilterIndex by remember { mutableIntStateOf(0) }
     val filterLabels = listOf("Hôm nay", "7 ngày qua", "Tháng này", "Tất cả")
 
@@ -255,7 +282,6 @@ fun ManagerOverviewTab(
         }
     }
 
-    // YÊU CẦU 1: CHỈ ĐƠN HOÀN THÀNH MỚI ĐƯỢC TÍNH VÀO DOANH THU
     val totalRevenue = filteredOrders
         .filter { order ->
             val statusStr = try { order.status.name } catch (e: Exception) { order.status.toString() }
@@ -282,7 +308,6 @@ fun ManagerOverviewTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Chip lọc thời gian
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -302,7 +327,6 @@ fun ManagerOverviewTab(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Thẻ Doanh thu
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -353,7 +377,6 @@ fun ManagerOverviewTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Thống kê phụ 2 ô
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -396,7 +419,6 @@ fun ManagerOverviewTab(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Danh sách Đơn hàng
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -445,7 +467,7 @@ fun ManagerOverviewTab(
 }
 
 // ==========================================
-// TAB 1: QUẢN LÝ THỰC ĐƠN
+// TAB 2: QUẢN LÝ THỰC ĐƠN
 // ==========================================
 @Composable
 fun ManagerMenuTab(
@@ -699,7 +721,7 @@ fun MenuItemEditDialog(
 }
 
 // ==========================================
-// TAB 2: QUẢN LÝ ĐƠN HÀNG
+// TAB 3: QUẢN LÝ ĐƠN HÀNG
 // ==========================================
 @Composable
 fun ManagerOrdersTab(
@@ -806,7 +828,8 @@ fun ManagerOrdersTab(
 @Composable
 fun OrderDetailDialog(
     order: Order,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateToTracking: (String) -> Unit
 ) {
     val formatter = remember { DecimalFormat("#,###đ") }
     val dateFormat = remember { SimpleDateFormat("HH:mm - dd/MM/yyyy", Locale.getDefault()) }
@@ -844,48 +867,51 @@ fun OrderDetailDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // YÊU CẦU 2 & 3: HIỂN THỊ THÔNG TIN THEO TRẠNG THÁI HOÀN THÀNH HOẶC HỦY
-                if (isCompleted) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE8F5E9),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when {
+                        isCompleted -> Color(0xFFE8F5E9)
+                        isCancelled -> Color(0xFFFFEBEE)
+                        else -> Color(0xFFE3F2FD)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable { onNavigateToTracking(order.id) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text("✅ Trạng thái: Đã hoàn thành", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF2E7D32))
-                            Text("Phục vụ bởi: NV_BếpViệt_01", fontSize = 11.sp, color = Color.DarkGray, modifier = Modifier.padding(top = 2.dp))
-                            Text("Thời gian xong: ${dateFormat.format(Date(order.createdAt + 15 * 60 * 1000))}", fontSize = 11.sp, color = Color.DarkGray)
-                        }
-                    }
-                } else if (isCancelled) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFFFEBEE),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text("❌ Trạng thái: Đã hủy", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = RedAccent)
+                        Column(modifier = Modifier.weight(1f)) {
+                            val statusText = when {
+                                isCompleted -> "✅ Trạng thái: Đã hoàn thành"
+                                isCancelled -> "❌ Trạng thái: Đã hủy (${if (order.cancelReason.isNullOrBlank()) "Khách hủy" else order.cancelReason})"
+                                else -> "🔄 Trạng thái: Đang xử lý trên hệ thống"
+                            }
                             Text(
-                                text = "Lý do hủy: ${if (order.cancelReason.isNullOrBlank()) "Khách yêu cầu hủy" else order.cancelReason}",
+                                text = statusText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = when {
+                                    isCompleted -> Color(0xFF2E7D32)
+                                    isCancelled -> RedAccent
+                                    else -> BluePrimary
+                                }
+                            )
+                            Text(
+                                text = "Bấm để xem tiến trình thời gian thực ➔",
                                 fontSize = 11.sp,
-                                color = RedAccent,
-                                fontWeight = FontWeight.Medium,
+                                color = Color.Gray,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
-                    }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE3F2FD),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "🔄 Trạng thái: Đang xử lý trên hệ thống",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = BluePrimary,
-                            modifier = Modifier.padding(10.dp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = BluePrimary,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -940,7 +966,7 @@ fun OrderDetailDialog(
 }
 
 // ==========================================
-// TAB 3: TÀI KHOẢN QUẢN LÝ
+// TAB 4: TÀI KHOẢN QUẢN LÝ
 // ==========================================
 @Composable
 fun ManagerProfileTab(
