@@ -524,7 +524,7 @@ fun ManagerOverviewTab(
                             val ratingText = if (feedbackList.isEmpty()) {
                                 "Chưa có đánh giá khảo sát"
                             } else {
-                                String.format(Locale.getDefault(), "⭐ %.1f/5 (%d đánh giá)", avgRating, feedbackList.size)
+                                String.format(Locale.forLanguageTag("vi-VN"), "⭐ %.1f/5 (%d đánh giá)", avgRating, feedbackList.size)
                             }
                             Text(ratingText, fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Medium)
                         }

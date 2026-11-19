@@ -57,9 +57,8 @@ fun KitchenQueueScreen(
             currentTime = Calendar.getInstance().time
         }
     }
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault()).format(currentTime)
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(currentTime)
-
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.forLanguageTag("vi-VN")).format(currentTime)
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("vi-VN")).format(currentTime)
     Column(
         modifier = Modifier
             .fillMaxSize()
