@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.model.OrderStatus
+import com.example.g9_smartrestaurant.model.UserRole
+import com.example.g9_smartrestaurant.ui.components.NotificationBell
+import com.example.g9_smartrestaurant.utils.NotificationHelper
 import com.example.g9_smartrestaurant.viewmodel.KitchenViewModel
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -82,7 +85,7 @@ fun KitchenQueueScreen(
                 Text(
                     text = "PHÒNG BẾP",
                     color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -101,7 +104,15 @@ fun KitchenQueueScreen(
                         fontSize = 11.sp
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Chuông thông báo cho Phòng bếp
+                NotificationBell(
+                    userRole = UserRole.KITCHEN,
+                    iconTint = Color.White
+                )
+
                 IconButton(onClick = onLogout) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ExitToApp,
@@ -133,7 +144,18 @@ fun KitchenQueueScreen(
                         badgeColor = RedSection,
                         buttonColor = RedSection,
                         buttonText = "Nhận đơn",
-                        onActionClick = { viewModel.updateOrderStatus(order.id, OrderStatus.PREPARING) }
+                        onActionClick = {
+                            viewModel.updateOrderStatus(order.id, OrderStatus.PREPARING)
+                            val shortCode = order.id.takeLast(6).uppercase()
+                            NotificationHelper.sendNotification(
+                                title = "Bếp đang chế biến món ăn",
+                                message = "Đơn #$shortCode (${order.tableNumber}) đã được Phòng bếp tiếp nhận và đang nấu.",
+                                type = "ORDER_STATUS",
+                                targetRole = "CUSTOMER",
+                                targetUserId = order.customerId.takeIf { it.isNotBlank() },
+                                orderId = order.id
+                            )
+                        }
                     )
                 }
             }
@@ -152,7 +174,29 @@ fun KitchenQueueScreen(
                         badgeColor = BlueSection,
                         buttonColor = BlueSection,
                         buttonText = "Hoàn thành",
-                        onActionClick = { viewModel.updateOrderStatus(order.id, OrderStatus.READY) }
+                        onActionClick = {
+                            viewModel.updateOrderStatus(order.id, OrderStatus.READY)
+                            val shortCode = order.id.takeLast(6).uppercase()
+
+                            // 1. Báo cho Khách hàng món đã nấu xong
+                            NotificationHelper.sendNotification(
+                                title = "Món ăn đã hoàn thành!",
+                                message = "Đơn #$shortCode (${order.tableNumber}) đã nấu xong và đang được nhân viên mang ra bàn.",
+                                type = "ORDER_STATUS",
+                                targetRole = "CUSTOMER",
+                                targetUserId = order.customerId.takeIf { it.isNotBlank() },
+                                orderId = order.id
+                            )
+
+                            // 2. Báo cho Nhân viên phục vụ lên nhận món tại quầy bếp
+                            NotificationHelper.sendNotification(
+                                title = "Món sẵn sàng tại quầy bếp",
+                                message = "Đơn #$shortCode (${order.tableNumber}) đã hoàn tất chế biến. Vui lòng nhận món phục vụ khách!",
+                                type = "ORDER_STATUS",
+                                targetRole = "STAFF",
+                                orderId = order.id
+                            )
+                        }
                     )
                 }
             }
@@ -273,7 +317,7 @@ fun VerticalOrderCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Bàn ${order.tableNumber}",
+                        text = order.tableNumber,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = DarkBlueHeader
@@ -307,7 +351,7 @@ fun VerticalOrderCard(
                             fontWeight = FontWeight.Medium,
                             color = Color.Black
                         )
-                        if (!item.notes.isNullOrEmpty()) {
+                        if (item.notes.isNotEmpty()) {
                             Text(
                                 text = "Ghi chú: ${item.notes}",
                                 fontSize = 12.sp,

@@ -31,9 +31,10 @@ import com.example.g9_smartrestaurant.model.OrderStatus
 import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
+import com.example.g9_smartrestaurant.utils.NotificationHelper
 import com.google.firebase.firestore.FirebaseFirestore
-import java.text.DecimalFormat
 import com.google.firebase.firestore.SetOptions
+import java.text.DecimalFormat
 
 @Composable
 fun CartTabContent(
@@ -242,9 +243,10 @@ fun CartTabContent(
                     Button(
                         onClick = {
                             isSubmitting = true
+                            val totalDishes = itemList.sumOf { it.quantity }
                             val newOrder = Order(
                                 customerId = currentUserId,
-                                tableNumber = selectedTableNumber, // TRUYỀN SELECTED TABLE ĐỘNG
+                                tableNumber = selectedTableNumber,
                                 items = itemList.map { it.toOrderItem() },
                                 total = totalPrice,
                                 status = OrderStatus.PLACED,
@@ -253,7 +255,7 @@ fun CartTabContent(
 
                             db.collection("orders").add(newOrder)
                                 .addOnSuccessListener { docRef ->
-                                    // CẬP NHẬT HOẶC TẠO MỚI TRẠNG THÁI BÀN 'OCCUPIED'
+                                    // 1. Cập nhật trạng thái bàn 'OCCUPIED'
                                     val tableIndex = selectedTableNumber.filter { it.isDigit() }.toIntOrNull() ?: 1
                                     val tableDocId = "table_%02d".format(tableIndex)
 
@@ -262,6 +264,15 @@ fun CartTabContent(
                                         "status" to "OCCUPIED"
                                     )
                                     db.collection("tables").document(tableDocId).set(tableData, SetOptions.merge())
+
+                                    // 2. Gửi thông báo đơn hàng mới cho NHÂN VIÊN (STAFF)
+                                    NotificationHelper.sendNotification(
+                                        title = "Đơn hàng mới tại $selectedTableNumber",
+                                        message = "Khách vừa đặt $totalDishes món (${formatter.format(totalPrice)}). Vui lòng kiểm tra và xác nhận đơn!",
+                                        type = "ORDER_NEW",
+                                        targetRole = "STAFF",
+                                        orderId = docRef.id
+                                    )
 
                                     isSubmitting = false
                                     Toast.makeText(context, "🎉 Đặt món thành công tại $selectedTableNumber!", Toast.LENGTH_LONG).show()
