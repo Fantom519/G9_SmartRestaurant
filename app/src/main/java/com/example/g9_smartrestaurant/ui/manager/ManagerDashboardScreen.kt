@@ -29,10 +29,13 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.g9_smartrestaurant.model.MenuItem
 import com.example.g9_smartrestaurant.model.Order
+import com.example.g9_smartrestaurant.model.UserRole
+import com.example.g9_smartrestaurant.ui.components.NotificationBell
 import com.example.g9_smartrestaurant.ui.components.TableManagementScreen
 import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
+import com.example.g9_smartrestaurant.utils.NotificationHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -41,6 +44,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+data class CustomerFeedbackItem(
+    val id: String = "",
+    val userEmail: String = "",
+    val rating: Int = 5,
+    val comment: String = "",
+    val createdAt: Long = 0L
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +72,11 @@ fun ManagerDashboardScreen(
     var ordersList by remember { mutableStateOf<List<Order>>(emptyList()) }
     var isLoadingOrders by remember { mutableStateOf(true) }
 
+    var feedbackList by remember { mutableStateOf<List<CustomerFeedbackItem>>(emptyList()) }
+
     var selectedOrderForDetail by remember { mutableStateOf<Order?>(null) }
+    var showBroadcastDialog by remember { mutableStateOf(false) }
+    var showFeedbackListDialog by remember { mutableStateOf(false) }
 
     // 1. Lắng nghe thực đơn Realtime từ 'menu_items'
     LaunchedEffect(Unit) {
@@ -89,6 +104,24 @@ fun ManagerDashboardScreen(
             }
     }
 
+    // 3. Lắng nghe đánh giá khảo sát từ 'feedbacks'
+    LaunchedEffect(Unit) {
+        db.collection("feedbacks")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    feedbackList = snapshot.documents.map { doc ->
+                        CustomerFeedbackItem(
+                            id = doc.id,
+                            userEmail = doc.getString("userEmail") ?: "Khách hàng",
+                            rating = (doc.getLong("rating") ?: 5L).toInt(),
+                            comment = doc.getString("comment") ?: "",
+                            createdAt = doc.getLong("createdAt") ?: 0L
+                        )
+                    }.sortedByDescending { it.createdAt }
+                }
+            }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -110,6 +143,18 @@ fun ManagerDashboardScreen(
                     }
                 },
                 actions = {
+                    // Nút gửi thông báo quảng cáo / khảo sát / nội bộ
+                    IconButton(onClick = { showBroadcastDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Campaign,
+                            contentDescription = "Gửi thông báo",
+                            tint = BluePrimary
+                        )
+                    }
+
+                    // Chuông thông báo hệ thống
+                    NotificationBell(userRole = UserRole.MANAGER)
+
                     IconButton(onClick = {
                         auth.signOut()
                         onLogout()
@@ -211,6 +256,9 @@ fun ManagerDashboardScreen(
                 0 -> ManagerOverviewTab(
                     ordersList = ordersList,
                     menuList = menuList,
+                    feedbackList = feedbackList,
+                    onOpenBroadcast = { showBroadcastDialog = true },
+                    onOpenFeedbackList = { showFeedbackListDialog = true },
                     onOrderClick = { selectedOrderForDetail = it }
                 )
                 1 -> TableManagementScreen(
@@ -222,7 +270,10 @@ fun ManagerDashboardScreen(
                     isLoading = isLoadingOrders,
                     onOrderClick = { selectedOrderForDetail = it }
                 )
-                4 -> ManagerProfileTab(onLogout = onLogout)
+                4 -> ManagerProfileTab(
+                    onOpenBroadcast = { showBroadcastDialog = true },
+                    onLogout = onLogout
+                )
             }
         }
     }
@@ -238,6 +289,25 @@ fun ManagerDashboardScreen(
             }
         )
     }
+
+    // POPUP SOẠN & GỬI THÔNG BÁO (QUẢNG CÁO, KHẢO SÁT, NỘI BỘ)
+    if (showBroadcastDialog) {
+        BroadcastNotificationDialog(
+            onDismiss = { showBroadcastDialog = false },
+            onSentSuccess = {
+                showBroadcastDialog = false
+                Toast.makeText(context, "📢 Đã phát thông báo tới các thiết bị!", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    // POPUP XEM ĐÁNH GIÁ KHẢO SÁT TỪ KHÁCH HÀNG
+    if (showFeedbackListDialog) {
+        FeedbackListDialog(
+            feedbackList = feedbackList,
+            onDismiss = { showFeedbackListDialog = false }
+        )
+    }
 }
 
 // ==========================================
@@ -247,6 +317,9 @@ fun ManagerDashboardScreen(
 fun ManagerOverviewTab(
     ordersList: List<Order>,
     menuList: List<MenuItem>,
+    feedbackList: List<CustomerFeedbackItem>,
+    onOpenBroadcast: () -> Unit,
+    onOpenFeedbackList: () -> Unit,
     onOrderClick: (Order) -> Unit
 ) {
     val formatter = remember { DecimalFormat("#,###đ") }
@@ -296,6 +369,10 @@ fun ManagerOverviewTab(
     val cancelledOrdersCount = filteredOrders.count {
         val statusStr = try { it.status.name } catch (e: Exception) { it.status.toString() }
         statusStr.contains("CANCELLED", ignoreCase = true)
+    }
+
+    val avgRating = remember(feedbackList) {
+        if (feedbackList.isEmpty()) 0.0 else feedbackList.map { it.rating }.average()
     }
 
     Column(
@@ -417,6 +494,62 @@ fun ManagerOverviewTab(
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // THẺ TRUYỀN THÔNG, KHUYẾN MÃI & KHẢO SÁT KHÁCH HÀNG
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color(0xFFFFF3E0), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Campaign, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text("Truyền thông & Khảo sát", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BluePrimary)
+                            val ratingText = if (feedbackList.isEmpty()) {
+                                "Chưa có đánh giá khảo sát"
+                            } else {
+                                String.format(Locale.forLanguageTag("vi-VN"), "⭐ %.1f/5 (%d đánh giá)", avgRating, feedbackList.size)
+                            }
+                            Text(ratingText, fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    TextButton(onClick = onOpenFeedbackList) {
+                        Text("Xem (${feedbackList.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = onOpenBroadcast,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Gửi ưu đãi / Khảo sát / Thông báo", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         Row(
@@ -464,6 +597,261 @@ fun ManagerOverviewTab(
             }
         }
     }
+}
+
+// ==========================================
+// DIALOG SOẠN & GỬI THÔNG BÁO (QUẢNG CÁO, KHẢO SÁT, NỘI BỘ)
+// ==========================================
+@Composable
+fun BroadcastNotificationDialog(
+    onDismiss: () -> Unit,
+    onSentSuccess: () -> Unit
+) {
+    val context = LocalContext.current
+
+    // Đối tượng nhận: CUSTOMER, STAFF, KITCHEN, ALL
+    val targetOptions = listOf(
+        "CUSTOMER" to "Khách hàng",
+        "STAFF" to "Nhân viên",
+        "KITCHEN" to "Phòng bếp",
+        "ALL" to "Tất cả"
+    )
+    var selectedTarget by remember { mutableStateOf("CUSTOMER") }
+
+    // Loại thông báo: PROMO, SURVEY, INTERNAL
+    val typeOptions = listOf(
+        "PROMO" to "Ưu đãi / Giảm giá",
+        "SURVEY" to "Khảo sát dịch vụ",
+        "INTERNAL" to "Thông báo chung"
+    )
+    var selectedType by remember { mutableStateOf("PROMO") }
+
+    var title by remember { mutableStateOf("Ưu đãi cuối tuần giảm 20%!") }
+    var message by remember { mutableStateOf("Nhập mã BEPVIET20 khi thanh toán để nhận ưu đãi giảm 20% tổng hóa đơn tại Bếp Việt.") }
+    var promoCode by remember { mutableStateOf("BEPVIET20") }
+    var isSending by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSending) onDismiss() },
+        shape = RoundedCornerShape(22.dp),
+        containerColor = Color.White,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Campaign, contentDescription = null, tint = RedAccent)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Gửi thông báo hệ thống", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = BluePrimary)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("1. Chọn nhóm người nhận:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    targetOptions.forEach { (roleKey, label) ->
+                        FilterChip(
+                            selected = selectedTarget == roleKey,
+                            onClick = {
+                                selectedTarget = roleKey
+                                if (roleKey != "CUSTOMER" && selectedType != "INTERNAL") {
+                                    selectedType = "INTERNAL"
+                                    title = "Thông báo vận hành ca làm việc"
+                                    message = "Nhân sự các bộ phận lưu ý kiểm tra nguyên liệu và quy trình phục vụ giờ cao điểm."
+                                }
+                            },
+                            label = { Text(label, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = BluePrimary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                Text("2. Loại thông báo (Mẫu nhanh):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    typeOptions.forEach { (typeKey, label) ->
+                        FilterChip(
+                            selected = selectedType == typeKey,
+                            onClick = {
+                                selectedType = typeKey
+                                when (typeKey) {
+                                    "PROMO" -> {
+                                        selectedTarget = "CUSTOMER"
+                                        title = "Ưu đãi cuối tuần giảm 20%!"
+                                        message = "Nhập mã BEPVIET20 để nhận ngay ưu đãi giảm 20% cho tất cả các món đặc sản tại Bếp Việt."
+                                        promoCode = "BEPVIET20"
+                                    }
+                                    "SURVEY" -> {
+                                        selectedTarget = "CUSTOMER"
+                                        title = "Khảo sát trải nghiệm dùng bữa"
+                                        message = "Bếp Việt rất mong nhận được đánh giá 5 sao và góp ý của bạn để nâng cao chất lượng phục vụ!"
+                                        promoCode = ""
+                                    }
+                                    "INTERNAL" -> {
+                                        title = "Thông báo từ Quản lý nhà hàng"
+                                        message = "Cập nhật thực đơn món mới trong ngày. Vui lòng kiểm tra danh sách món trước khi phục vụ."
+                                        promoCode = ""
+                                    }
+                                }
+                            },
+                            label = { Text(label, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedAccent,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Tiêu đề thông báo", fontSize = 12.sp) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (selectedType == "PROMO") {
+                    OutlinedTextField(
+                        value = promoCode,
+                        onValueChange = { promoCode = it.uppercase().trim() },
+                        label = { Text("Mã giảm giá đính kèm (VD: BEPVIET20)", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, tint = Color(0xFFE65100)) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("Nội dung chi tiết", fontSize = 12.sp) },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isBlank() || message.isBlank()) {
+                        Toast.makeText(context, "Vui lòng nhập đầy đủ tiêu đề và nội dung!", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isSending = true
+                    NotificationHelper.sendNotification(
+                        title = title.trim(),
+                        message = message.trim(),
+                        type = selectedType,
+                        targetRole = selectedTarget,
+                        promoCode = if (selectedType == "PROMO") promoCode else null
+                    ) { success ->
+                        isSending = false
+                        if (success) {
+                            onSentSuccess()
+                        } else {
+                            Toast.makeText(context, "Gửi thông báo thất bại!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isSending
+            ) {
+                if (isSending) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                } else {
+                    Text("Gửi ngay", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSending) {
+                Text("Hủy", color = Color.Gray)
+            }
+        }
+    )
+}
+
+// ==========================================
+// DIALOG XEM DANH SÁCH ĐÁNH GIÁ KHẢO SÁT TỪ KHÁCH HÀNG
+// ==========================================
+@Composable
+fun FeedbackListDialog(
+    feedbackList: List<CustomerFeedbackItem>,
+    onDismiss: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("HH:mm dd/MM/yyyy", Locale.getDefault()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = Color.White,
+        title = {
+            Text("Đánh giá từ Khách hàng (${feedbackList.size})", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = BluePrimary)
+        },
+        text = {
+            if (feedbackList.isEmpty()) {
+                Text("Chưa có khách hàng nào gửi phản hồi khảo sát.", fontSize = 13.sp, color = Color.Gray)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(feedbackList) { fb ->
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp).fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(fb.userEmail, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
+                                    Row {
+                                        repeat(fb.rating) {
+                                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
+                                if (fb.comment.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(fb.comment, fontSize = 12.sp, color = Color.DarkGray)
+                                }
+                                if (fb.createdAt > 0L) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(dateFormat.format(Date(fb.createdAt)), fontSize = 10.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Đóng", color = Color.White)
+            }
+        }
+    )
 }
 
 // ==========================================
@@ -970,6 +1358,7 @@ fun OrderDetailDialog(
 // ==========================================
 @Composable
 fun ManagerProfileTab(
+    onOpenBroadcast: () -> Unit,
     onLogout: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
@@ -998,7 +1387,22 @@ fun ManagerProfileTab(
         Text("Quản lý Hệ thống", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
         Text(currentUser?.email ?: "manager@bepviet.com", fontSize = 13.sp, color = Color.Gray)
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onOpenBroadcast,
+            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Icon(Icons.Default.Campaign, contentDescription = null, tint = Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Gửi thông báo & Khảo sát", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             onClick = {
@@ -1007,7 +1411,9 @@ fun ManagerProfileTab(
             },
             colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
             shape = RoundedCornerShape(20.dp),
-            modifier = Modifier.fillMaxWidth().height(48.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
         ) {
             Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color.White)
             Spacer(modifier = Modifier.width(8.dp))

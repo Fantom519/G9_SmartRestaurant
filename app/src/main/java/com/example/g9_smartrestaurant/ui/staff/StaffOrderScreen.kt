@@ -1,4 +1,3 @@
-
 package com.example.g9_smartrestaurant.ui.staff
 
 import androidx.compose.foundation.background
@@ -9,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,9 +21,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.model.OrderStatus
+import com.example.g9_smartrestaurant.model.UserRole
+import com.example.g9_smartrestaurant.ui.components.NotificationBell
+import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
-import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.SurfaceGray
 import com.example.g9_smartrestaurant.viewmodel.StaffViewModel
 import java.text.NumberFormat
@@ -34,8 +37,8 @@ import java.util.Locale
 fun StaffOrderScreen(
     onOrderClick: (String) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
-    staffViewModel: StaffViewModel = viewModel(),
-    onLogout: () -> Unit
+    onLogout: () -> Unit = {},
+    staffViewModel: StaffViewModel = viewModel()
 ) {
     val orders by staffViewModel.orders.collectAsStateWithLifecycle()
     val isLoading by staffViewModel.isLoading.collectAsStateWithLifecycle()
@@ -59,8 +62,8 @@ fun StaffOrderScreen(
             .background(BgLight)
     ) {
 
-        // HEADER THƯƠNG HIỆU
-        StaffHeader()
+        // HEADER THƯƠNG HIỆU + CHUÔNG THÔNG BÁO
+        StaffHeader(onLogout = onLogout)
 
         // THỐNG KÊ VÀ DANH SÁCH
         Column(
@@ -74,8 +77,7 @@ fun StaffOrderScreen(
             // HÀNG THỐNG KÊ THỨ NHẤT
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatusCounter(
                     title = "Chờ xác nhận",
@@ -99,8 +101,7 @@ fun StaffOrderScreen(
             // HÀNG THỐNG KÊ THỨ HAI
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatusCounter(
                     title = "Đang chế biến",
@@ -125,8 +126,7 @@ fun StaffOrderScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "Danh sách đơn hàng",
@@ -152,8 +152,7 @@ fun StaffOrderScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement =
-                    Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 StaffFilterChip(
                     text = "Tất cả",
@@ -231,10 +230,8 @@ fun StaffOrderScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp),
-                        contentPadding =
-                            PaddingValues(bottom = 20.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 20.dp)
                     ) {
                         items(
                             items = filteredOrders,
@@ -255,7 +252,13 @@ fun StaffOrderScreen(
 }
 
 @Composable
-private fun StaffHeader() {
+private fun StaffHeader(
+    onLogout: () -> Unit
+) {
+    var showLogoutDialog by remember {
+        mutableStateOf(false)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -264,27 +267,88 @@ private fun StaffHeader() {
                 horizontal = 20.dp,
                 vertical = 20.dp
             ),
-        verticalArrangement =
-            Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = "G9 SMART RESTAURANT",
-            style = MaterialTheme.typography.labelMedium,
-            color = Color(0xFFDDE8FA),
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "G9 SMART RESTAURANT",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFFDDE8FA),
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Chuông thông báo cho Nhân viên
+                NotificationBell(
+                    userRole = UserRole.STAFF,
+                    iconTint = Color.White
+                )
+
+                IconButton(
+                    onClick = {
+                        showLogoutDialog = true
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = "Đăng xuất",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
 
         Text(
             text = "Quản lý đơn hàng",
             style = MaterialTheme.typography.headlineSmall,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
 
         Text(
-            text = "Nhân viên phục vụ",
+            text = "Theo dõi và cập nhật trạng thái đơn hàng",
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFFE8EEF5)
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showLogoutDialog = false
+            },
+            title = {
+                Text("Xác nhận đăng xuất")
+            },
+            text = {
+                Text(
+                    "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản nhân viên?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }
+                ) {
+                    Text("Đăng xuất")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                    }
+                ) {
+                    Text("Hủy")
+                }
+            }
         )
     }
 }
@@ -309,8 +373,7 @@ private fun StatusCounter(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = count.toString(),
@@ -388,16 +451,14 @@ private fun StaffOrderCard(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
 
             // SỐ BÀN VÀ TRẠNG THÁI
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = formatTableNumber(order.tableNumber),
@@ -437,8 +498,7 @@ private fun StaffOrderCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = currencyFormatter.format(order.total),

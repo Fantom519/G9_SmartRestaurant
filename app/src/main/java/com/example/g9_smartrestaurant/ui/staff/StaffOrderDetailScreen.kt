@@ -1,8 +1,6 @@
-
 package com.example.g9_smartrestaurant.ui.staff
 
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,17 +10,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
 import com.example.g9_smartrestaurant.model.Order
 import com.example.g9_smartrestaurant.model.OrderItem
 import com.example.g9_smartrestaurant.model.OrderStatus
 import com.example.g9_smartrestaurant.repository.OrderRepository
+import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
-import com.example.g9_smartrestaurant.ui.theme.BgLight
 import com.example.g9_smartrestaurant.ui.theme.SurfaceGray
+import com.example.g9_smartrestaurant.utils.NotificationHelper
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -161,7 +160,7 @@ fun StaffOrderDetailScreen(
                         )
                     }
 
-                    // NÚT XÁC NHẬN ĐƠN
+                    // NÚT XÁC NHẬN ĐƠN -> BÁO BẾP & KHÁCH HÀNG
                     if (currentOrder.status == OrderStatus.PLACED) {
                         StaffActionButton(
                             text = "Xác nhận đơn hàng",
@@ -179,6 +178,29 @@ fun StaffOrderDetailScreen(
                                         isConfirming = false
 
                                         result.onSuccess {
+                                            val shortCode = currentOrder.id.takeLast(6).uppercase()
+                                            val tableLabel = formatStaffTable(currentOrder.tableNumber)
+                                            val itemCount = currentOrder.items.sumOf { it.quantity }
+
+                                            // 1. Gửi thông báo đơn mới cho PHÒNG BẾP (KITCHEN)
+                                            NotificationHelper.sendNotification(
+                                                title = "Đơn mới tại $tableLabel",
+                                                message = "Đơn #$shortCode ($itemCount món) đã được nhân viên duyệt. Vui lòng tiếp nhận chế biến!",
+                                                type = "ORDER_NEW",
+                                                targetRole = "KITCHEN",
+                                                orderId = currentOrder.id
+                                            )
+
+                                            // 2. Gửi thông báo cập nhật trạng thái cho KHÁCH HÀNG (CUSTOMER)
+                                            NotificationHelper.sendNotification(
+                                                title = "Đơn hàng đã được xác nhận",
+                                                message = "Đơn #$shortCode ($tableLabel) đã được nhân viên tiếp nhận và chuyển xuống Phòng bếp.",
+                                                type = "ORDER_STATUS",
+                                                targetRole = "CUSTOMER",
+                                                targetUserId = currentOrder.customerId.takeIf { it.isNotBlank() },
+                                                orderId = currentOrder.id
+                                            )
+
                                             Toast.makeText(
                                                 context,
                                                 "Xác nhận đơn thành công",
@@ -197,7 +219,7 @@ fun StaffOrderDetailScreen(
                         )
                     }
 
-                    // NÚT HOÀN TẤT ĐƠN
+                    // NÚT HOÀN TẤT ĐƠN -> BÁO HOÀN TẤT & MỜI KHẢO SÁT 5 SAO CHO KHÁCH
                     if (currentOrder.status == OrderStatus.READY) {
                         StaffActionButton(
                             text = "Hoàn tất đơn hàng",
@@ -215,6 +237,30 @@ fun StaffOrderDetailScreen(
                                         isCompleting = false
 
                                         result.onSuccess {
+                                            val shortCode = currentOrder.id.takeLast(6).uppercase()
+                                            val tableLabel = formatStaffTable(currentOrder.tableNumber)
+                                            val customerUid = currentOrder.customerId.takeIf { it.isNotBlank() }
+
+                                            // 1. Thông báo hoàn tất phục vụ
+                                            NotificationHelper.sendNotification(
+                                                title = "Đơn hàng đã hoàn tất",
+                                                message = "Cảm ơn quý khách tại $tableLabel đã dùng bữa tại Bếp Việt (Đơn #$shortCode).",
+                                                type = "ORDER_STATUS",
+                                                targetRole = "CUSTOMER",
+                                                targetUserId = customerUid,
+                                                orderId = currentOrder.id
+                                            )
+
+                                            // 2. Gửi lời mời khảo sát đánh giá 5 sao tự động
+                                            NotificationHelper.sendNotification(
+                                                title = "Mời đánh giá trải nghiệm bữa ăn",
+                                                message = "Bữa ăn tại $tableLabel thế nào? Chạm vào đây để đánh giá 5 sao và góp ý cho nhà hàng nhé!",
+                                                type = "SURVEY",
+                                                targetRole = "CUSTOMER",
+                                                targetUserId = customerUid,
+                                                orderId = currentOrder.id
+                                            )
+
                                             Toast.makeText(
                                                 context,
                                                 "Đơn hàng đã hoàn tất",
@@ -295,8 +341,7 @@ private fun OrderDetailContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement =
-            Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
         // THÔNG TIN ĐƠN HÀNG
@@ -310,14 +355,12 @@ private fun OrderDetailContent(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement =
-                        Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement =
-                            Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -393,8 +436,7 @@ private fun OrderDetailContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -428,14 +470,12 @@ private fun StaffOrderItemCard(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = item.name,
@@ -473,8 +513,7 @@ private fun StaffOrderItemCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "Thành tiền",

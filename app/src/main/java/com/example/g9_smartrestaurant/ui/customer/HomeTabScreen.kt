@@ -31,7 +31,8 @@ import com.example.g9_smartrestaurant.ui.theme.BluePrimary
 import com.example.g9_smartrestaurant.ui.theme.RedAccent
 import com.google.firebase.auth.FirebaseAuth
 import java.text.DecimalFormat
-
+import com.example.g9_smartrestaurant.model.UserRole
+import com.example.g9_smartrestaurant.ui.components.NotificationBell
 @Composable
 fun HomeTabContent(
     menuList: List<MenuItem>,
@@ -104,14 +105,12 @@ fun HomeTabContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(
-                    onClick = { Toast.makeText(context, "Không có thông báo mới", Toast.LENGTH_SHORT).show() },
+                NotificationBell(
+                    userRole = UserRole.CUSTOMER,
                     modifier = Modifier
                         .size(38.dp)
                         .background(Color.White, shape = CircleShape)
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = "Thông báo", tint = BluePrimary, modifier = Modifier.size(20.dp))
-                }
+                )
 
                 Box {
                     IconButton(

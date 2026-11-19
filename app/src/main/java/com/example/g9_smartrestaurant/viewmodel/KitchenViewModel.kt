@@ -16,7 +16,7 @@ class KitchenViewModel(
     private val repository: OrderRepository = OrderRepository()
 ) : ViewModel() {
 
-    // Tính mốc thời gian 00:00:00 đầu ngày hôm nay
+    // Mốc 00:00:00 đầu ngày hôm nay
     private fun getStartOfToday(): Long {
         return Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -26,7 +26,7 @@ class KitchenViewModel(
         }.timeInMillis
     }
 
-    // Lấy đơn hàng active được tạo trong ngày hôm nay
+    // 1. Danh sách đơn hàng active của HÔM NAY
     val orders: StateFlow<List<Order>> = repository.observeActiveOrders()
         .map { orderList ->
             val startOfToday = getStartOfToday()
@@ -40,7 +40,20 @@ class KitchenViewModel(
             initialValue = emptyList()
         )
 
-    // Sử dụng viewModelScope.launch để gọi suspend function
+    // 2. Danh sách đơn hàng LỊCH SỬ (các ngày trước)
+    val historyOrders: StateFlow<List<Order>> = repository.observeActiveOrders()
+        .map { orderList ->
+            val startOfToday = getStartOfToday()
+            orderList.filter { order ->
+                order.createdAt < startOfToday
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     fun updateOrderStatus(orderId: String, newStatus: OrderStatus) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, newStatus)
